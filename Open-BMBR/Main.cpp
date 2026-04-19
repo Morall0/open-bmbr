@@ -25,6 +25,7 @@
 #include "Model.h"
 
 // Function prototypes
+GLuint LoadTexture2D(const char* path);
 void KeyCallback(GLFWwindow *window, int key, int scancode, int action, int mode);
 void MouseCallback(GLFWwindow *window, double xPos, double yPos);
 void DoMovement();
@@ -41,7 +42,7 @@ bool keys[1024];
 bool firstMouse = true;
 
 float vertices[] = {
-    // Vertex            // Normal cords      // Texcoords 
+    // Vertex coords     // Normal cords      // Texcoords 
     -0.5f, -0.5f, -0.5f,  0.0f,  0.0f, -1.0f, 1.0f, 0.0f, // Back
      0.5f, -0.5f, -0.5f,  0.0f,  0.0f, -1.0f, 0.0f, 0.0f,
      0.5f,  0.5f, -0.5f,  0.0f,  0.0f, -1.0f, 0.0f, 1.0f,
@@ -91,261 +92,278 @@ GLfloat lastFrame = 0.0f;  	// Time of last frame
 
 int main()
 {
-	// Init GLFW
-	glfwInit();
-	// Set all the required options for GLFW
-	// glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-	// glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-	// glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-	// glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
-	// glfwWindowHint(GLFW_RESIZABLE, GL_FALSE);
+    // Init GLFW
+    glfwInit();
+    // Set all the required options for GLFW
+    // glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    // glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    // glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    // glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+    // glfwWindowHint(GLFW_RESIZABLE, GL_FALSE);
 
-	// Create a GLFWwindow object that we can use for GLFW's functions
-	GLFWwindow* window = glfwCreateWindow(WIDTH, HEIGHT, "Fuentes de luz", nullptr, nullptr);
+    // Create a GLFWwindow object that we can use for GLFW's functions
+    GLFWwindow* window = glfwCreateWindow(WIDTH, HEIGHT, "Fuentes de luz", nullptr, nullptr);
 
-	if (nullptr == window)
-	{
-		std::cout << "Failed to create GLFW window" << std::endl;
-		glfwTerminate();
+    if (nullptr == window)
+    {
+        std::cout << "Failed to create GLFW window" << std::endl;
+        glfwTerminate();
 
-		return EXIT_FAILURE;
-	}
+        return EXIT_FAILURE;
+    }
 
-	glfwMakeContextCurrent(window);
+    glfwMakeContextCurrent(window);
 
-	glfwGetFramebufferSize(window, &SCREEN_WIDTH, &SCREEN_HEIGHT);
+    glfwGetFramebufferSize(window, &SCREEN_WIDTH, &SCREEN_HEIGHT);
 
-	// Set the required callback functions
-	glfwSetKeyCallback(window, KeyCallback);
-	glfwSetCursorPosCallback(window, MouseCallback);
+    // Set the required callback functions
+    glfwSetKeyCallback(window, KeyCallback);
+    glfwSetCursorPosCallback(window, MouseCallback);
 
-	// GLFW Options
-	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    // GLFW Options
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
-	// Set this to true so GLEW knows to use a modern approach to retrieving function pointers and extensions
-	glewExperimental = GL_TRUE;
-	// Initialize GLEW to setup the OpenGL Function pointers
-	if (GLEW_OK != glewInit())
-	{
-		std::cout << "Failed to initialize GLEW" << std::endl;
-		return EXIT_FAILURE;
-	}
+    // Set this to true so GLEW knows to use a modern approach to retrieving function pointers and extensions
+    glewExperimental = GL_TRUE;
 
-	// Define the viewport dimensions
-	glViewport(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+    // Initialize GLEW to setup the OpenGL Function pointers
+    if (GLEW_OK != glewInit())
+    {
+        std::cout << "Failed to initialize GLEW" << std::endl;
+        return EXIT_FAILURE;
+    }
 
-	// SHADERS
-	Shader lightingShader("Shader/lighting.vs", "Shader/lighting.frag");
-    // Shader lampShader("Shader/lamp.vs", "Shader/lamp.frag");
-	
+    // OpenGL options
+    glEnable(GL_DEPTH_TEST);
+    glEnable(GL_MULTISAMPLE);
+
+    // Define the viewport dimensions
+    glViewport(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+
+    // SHADERS
+    Shader lightingShader("Shader/lighting.vs", "Shader/lighting.frag");
+
     // MODEL LOADING
-	// Model model((char*)"Models/model_name.obj");
+    // Model model((char*)"Models/model_name.obj");
 
-	// First, set the container's VAO (and VBO)
-	GLuint VBO, VAO;
-	glGenVertexArrays(1, &VAO);
-	glGenBuffers(1, &VBO);
-	glBindVertexArray(VAO);
-	glBindBuffer(GL_ARRAY_BUFFER, VBO);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-	// Position attribute
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(GLfloat), (GLvoid*)0);
-	glEnableVertexAttribArray(0);
-	// normal attribute
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(3 * sizeof(float)));
-	glEnableVertexAttribArray(1);
+    // First, set the container's VAO (and VBO)
+    GLuint VBO, VAO;
+    glGenVertexArrays(1, &VAO);
+    glGenBuffers(1, &VBO);
+    glBindVertexArray(VAO);
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+    // Position attribute
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(GLfloat), (GLvoid*)0);
+    glEnableVertexAttribArray(0);
+    // normal attribute
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(3 * sizeof(float)));
+    glEnableVertexAttribArray(1);
     // Texture Coordinate attribute
-	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(GLfloat), (GLvoid *)(6 * sizeof(GLfloat)));
-	glEnableVertexAttribArray(2);
-	glBindVertexArray(0);
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(GLfloat), (GLvoid *)(6 * sizeof(GLfloat)));
+    glEnableVertexAttribArray(2);
+    glBindVertexArray(0);
 
-	// Load textures
-	GLuint texture1;
-	glGenTextures(1, &texture1);
-	glBindTexture(GL_TEXTURE_2D,texture1);
-	int textureWidth, textureHeight,nrChannels;
-	stbi_set_flip_vertically_on_load(true);
-	unsigned char *image;
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST_MIPMAP_NEAREST);
-	// Diffuse map
-    image = stbi_load("images/Ground_04.png", &textureWidth, &textureHeight, &nrChannels,0);
-	glBindTexture(GL_TEXTURE_2D, texture1);
-	if (image)
-	{
-        GLenum format;
+    // Load textures
+    stbi_set_flip_vertically_on_load(true);
+    GLuint ground_texture = LoadTexture2D("images/Ground_04.png");
 
-        // Chose the right format based on channels
-        if (nrChannels == 1)
-            format = GL_RED;
-        else if (nrChannels == 3)
-            format = GL_RGB;
-        else if (nrChannels == 4)
-            format = GL_RGBA;
+    // Use cooresponding shader and set uniforms
+    lightingShader.Use();
 
-		glTexImage2D(GL_TEXTURE_2D, 0, format, textureWidth, textureHeight, 0, format, GL_UNSIGNED_BYTE, image);
-		glGenerateMipmap(GL_TEXTURE_2D);
-	}
-	else
-	{
-		std::cout << "Failed to load texture" << std::endl;
-	}
-	stbi_image_free(image);
+    // Get the uniform locations
+    GLint modelLoc = glGetUniformLocation(lightingShader.Program, "model");
+    GLint viewLoc = glGetUniformLocation(lightingShader.Program, "view");
+    GLint projLoc = glGetUniformLocation(lightingShader.Program, "projection");
 
-	// Set texture units
-	lightingShader.Use();
-	glUniform1i(glGetUniformLocation(lightingShader.Program, "material.diffuse"), 0);
-	glUniform1i(glGetUniformLocation(lightingShader.Program, "material.specular"), 1);
+    GLint viewPosLoc = glGetUniformLocation(lightingShader.Program, "viewPos"); // Uniform for camera position
 
-	glm::mat4 projection = glm::perspective(camera.GetZoom(), (GLfloat)SCREEN_WIDTH / (GLfloat)SCREEN_HEIGHT, 0.1f, 100.0f);
+    GLint uvScaleLoc = glGetUniformLocation(lightingShader.Program, "uvScale"); // Uniform for texture scaling
 
-	// Game loop
-	while (!glfwWindowShouldClose(window))
-	{
+    // Material properties
+    glUniform1i(glGetUniformLocation(lightingShader.Program, "material.diffuse"), 0);
+    glUniform1i(glGetUniformLocation(lightingShader.Program, "material.specular"), 1);
+    glUniform1f(glGetUniformLocation(lightingShader.Program, "material.shininess"), 16.0f);
 
-		// Calculate deltatime of current frame
-		GLfloat currentFrame = glfwGetTime();
-		deltaTime = currentFrame - lastFrame;
-		lastFrame = currentFrame;
+    // Dir light properties
+    glUniform3f(glGetUniformLocation(lightingShader.Program, "dirLight.direction"), -0.2f, -1.0f, -0.3f);
+    glUniform3f(glGetUniformLocation(lightingShader.Program, "dirLight.ambient"),0.3f,0.3f,0.3f);
+    glUniform3f(glGetUniformLocation(lightingShader.Program, "dirLight.diffuse"), 0.3f, 0.3f, 0.3f);
+    glUniform3f(glGetUniformLocation(lightingShader.Program, "dirLight.specular"),0.0f, 0.0f, 0.0f);
 
-		// Check if any events have been activated (key pressed, mouse moved etc.) and call corresponding response functions
-		glfwPollEvents();
-		DoMovement();
+    // Set the projection type and parameters
+    glm::mat4 projection = glm::perspective(camera.GetZoom(), (GLfloat)SCREEN_WIDTH / (GLfloat)SCREEN_HEIGHT, 0.1f, 100.0f);
 
-		// Clear the colorbuffer
-		glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	   
-		// OpenGL options
-		glEnable(GL_DEPTH_TEST);
-		glEnable(GL_MULTISAMPLE);
+    glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(projection)); // Pass the projection matrix
 
-		// Use cooresponding shader when setting uniforms/drawing objects
-		lightingShader.Use();
+    // Game loop
+    while (!glfwWindowShouldClose(window))
+    {
+        // Calculate deltatime of current frame
+        GLfloat currentFrame = glfwGetTime();
+        deltaTime = currentFrame - lastFrame;
+        lastFrame = currentFrame;
 
-        // Set light properties
-        glUniform1i(glGetUniformLocation(lightingShader.Program, "diffuse"), 0);
-		glUniform1i(glGetUniformLocation(lightingShader.Program, "specular"),1);
+        // Check if any events have been activated (key pressed, mouse moved etc.) and call corresponding response functions
+        glfwPollEvents();
+        DoMovement();
 
-        // Pass view Position matrix to the sader
-		GLint viewPosLoc = glGetUniformLocation(lightingShader.Program, "viewPos");
-		glUniform3f(viewPosLoc, camera.GetPosition().x, camera.GetPosition().y, camera.GetPosition().z);
+        // Clear the colorbuffer
+        glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-		// Directional light
-		glUniform3f(glGetUniformLocation(lightingShader.Program, "dirLight.direction"), -0.2f, -1.0f, -0.3f);
-		glUniform3f(glGetUniformLocation(lightingShader.Program, "dirLight.ambient"),0.3f,0.3f,0.3f);
-		glUniform3f(glGetUniformLocation(lightingShader.Program, "dirLight.diffuse"), 0.3f, 0.3f, 0.3f);
-		glUniform3f(glGetUniformLocation(lightingShader.Program, "dirLight.specular"),0.0f, 0.0f, 0.0f);
+        lightingShader.Use();
 
-		// Set material properties
-		glUniform1f(glGetUniformLocation(lightingShader.Program, "material.shininess"), 16.0f);
+        // CAMERA ------
+        glm::mat4 view = camera.GetViewMatrix();
 
-		// Create camera transformations
-		glm::mat4 view;
-		view = camera.GetViewMatrix();
+        // Pass view matrix
+        glUniformMatrix4fv(viewLoc,
+        1,
+        GL_FALSE,
+        glm::value_ptr(view));
 
-		// Get the uniform locations
-		GLint modelLoc = glGetUniformLocation(lightingShader.Program, "model");
-		GLint viewLoc = glGetUniformLocation(lightingShader.Program, "view");
-		GLint projLoc = glGetUniformLocation(lightingShader.Program, "projection");
+        // Pass camera position
+        glUniform3f(viewPosLoc,
+        camera.GetPosition().x,
+        camera.GetPosition().y,
+        camera.GetPosition().z);
+
+        // FLOOR ------
 
         // Bind diffuse map
         glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, texture1);
-        
-        // Pass texture scale to the shader
-        GLint uvScaleLoc = glGetUniformLocation(lightingShader.Program, "uvScale");
-        glUniform2f(uvScaleLoc, 17.0f, 11.0f);
-        
-		// Pass the matrices to the shader
-		glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
-		glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(projection));
+        glBindTexture(GL_TEXTURE_2D, ground_texture);
 
-		glm::mat4 model(1);
+        glUniform2f(uvScaleLoc, 17.0f, 11.0f); // Pass texture scale
 
-		// Draw floor
-        view = camera.GetViewMatrix();	
-		model = glm::mat4(1);
+        // Model transformations
+        glm::mat4 model(1.0f);
         model = glm::scale(model,glm::vec3(17.0f, 1.0f, 11.0f));
-		glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
+        glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
+
+        // Draw floor
         glBindVertexArray(VAO);
         glDrawArrays(GL_TRIANGLES, 30, 6);
 
-		glBindVertexArray(0);
+        glBindVertexArray(0);
 
-		// Swap the screen buffers
-		glfwSwapBuffers(window);
-	}
+        // Swap the screen buffers
+        glfwSwapBuffers(window);
+    }
 
-	// Terminate GLFW, clearing any resources allocated by GLFW.
-	glfwTerminate();
+    // Terminate GLFW, clearing any resources allocated by GLFW.
+    glfwTerminate();
 
-	return 0;
+    return 0;
+}
+
+GLuint LoadTexture2D(const char* path)
+{
+    // Load textures
+    GLuint texture;
+    glGenTextures(1, &texture);
+    glBindTexture(GL_TEXTURE_2D,texture);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST_MIPMAP_NEAREST);
+
+    // Diffuse map
+    unsigned char *image;
+    int textureWidth, textureHeight,nrChannels;
+    image = stbi_load(path, &textureWidth, &textureHeight, &nrChannels,0);
+    
+    if (!image)
+    {
+        std::cout << "Failed to load texture: " << path << std::endl;
+        return 0;
+    }
+
+    GLenum format;
+
+    // Chose the right format based on channels
+    if (nrChannels == 1)
+        format = GL_RED;
+    else if (nrChannels == 3)
+        format = GL_RGB;
+    else if (nrChannels == 4)
+        format = GL_RGBA;
+    else
+    {
+        std::cout << "Unsupported channel count for: " << path << std::endl;
+        stbi_image_free(image);
+        return 0;
+    }
+
+    glTexImage2D(GL_TEXTURE_2D, 0, format, textureWidth, textureHeight, 0, format, GL_UNSIGNED_BYTE, image);
+    glGenerateMipmap(GL_TEXTURE_2D);
+
+    stbi_image_free(image);
+    return texture;
 }
 
 // Moves/alters the camera positions based on user input
 void DoMovement()
 {
+    // Camera controls
+    if (keys[GLFW_KEY_W] || keys[GLFW_KEY_UP])
+    {
+        camera.ProcessKeyboard(FORWARD, deltaTime);
+    }
 
-	// Camera controls
-	if (keys[GLFW_KEY_W] || keys[GLFW_KEY_UP])
-	{
-		camera.ProcessKeyboard(FORWARD, deltaTime);
-	}
+    if (keys[GLFW_KEY_S] || keys[GLFW_KEY_DOWN])
+    {
+        camera.ProcessKeyboard(BACKWARD, deltaTime);
+    }
 
-	if (keys[GLFW_KEY_S] || keys[GLFW_KEY_DOWN])
-	{
-		camera.ProcessKeyboard(BACKWARD, deltaTime);
-	}
+    if (keys[GLFW_KEY_A] || keys[GLFW_KEY_LEFT])
+    {
+        camera.ProcessKeyboard(LEFT, deltaTime);
+    }
 
-	if (keys[GLFW_KEY_A] || keys[GLFW_KEY_LEFT])
-	{
-		camera.ProcessKeyboard(LEFT, deltaTime);
-	}
-
-	if (keys[GLFW_KEY_D] || keys[GLFW_KEY_RIGHT])
-	{
-		camera.ProcessKeyboard(RIGHT, deltaTime);
-	}
+    if (keys[GLFW_KEY_D] || keys[GLFW_KEY_RIGHT])
+    {
+        camera.ProcessKeyboard(RIGHT, deltaTime);
+    }
 }
 
 // Is called whenever a key is pressed/released via GLFW
 void KeyCallback(GLFWwindow *window, int key, int scancode, int action, int mode)
 {
-	if (GLFW_KEY_ESCAPE == key && GLFW_PRESS == action)
-	{
-		glfwSetWindowShouldClose(window, GL_TRUE);
-	}
+    if (GLFW_KEY_ESCAPE == key && GLFW_PRESS == action)
+    {
+        glfwSetWindowShouldClose(window, GL_TRUE);
+    }
 
-	if (key >= 0 && key < 1024)
-	{
-		if (action == GLFW_PRESS)
-		{
-			keys[key] = true;
-		}
-		else if (action == GLFW_RELEASE)
-		{
-			keys[key] = false;
-		}
-	}
+    if (key >= 0 && key < 1024)
+    {
+        if (action == GLFW_PRESS)
+        {
+            keys[key] = true;
+        }
+        else if (action == GLFW_RELEASE)
+        {
+            keys[key] = false;
+        }
+    }
 }
 
 void MouseCallback(GLFWwindow *window, double xPos, double yPos)
 {
-	if (firstMouse)
-	{
-		lastX = xPos;
-		lastY = yPos;
-		firstMouse = false;
-	}
+    if (firstMouse)
+    {
+        lastX = xPos;
+        lastY = yPos;
+        firstMouse = false;
+    }
 
-	GLfloat xOffset = xPos - lastX;
-	GLfloat yOffset = lastY - yPos;  // Reversed since y-coordinates go from bottom to left
+    GLfloat xOffset = xPos - lastX;
+    GLfloat yOffset = lastY - yPos;  // Reversed since y-coordinates go from bottom to left
 
-	lastX = xPos;
-	lastY = yPos;
+    lastX = xPos;
+    lastY = yPos;
 
-	camera.ProcessMouseMovement(xOffset, yOffset);
+    camera.ProcessMouseMovement(xOffset, yOffset);
 }
