@@ -167,6 +167,7 @@ int main()
     // Load textures
     stbi_set_flip_vertically_on_load(true);
     GLuint ground_texture = LoadTexture2D("images/Ground_04.png");
+    GLuint wall_texture = LoadTexture2D("images/native_wall_1.png");
 
     // Use cooresponding shader and set uniforms
     lightingShader.Use();
@@ -229,8 +230,9 @@ int main()
         camera.GetPosition().y,
         camera.GetPosition().z);
 
-        // FLOOR ------
+        glm::mat4 model(1.0f);
 
+        // FLOOR ------
         // Bind diffuse map
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, ground_texture);
@@ -238,13 +240,52 @@ int main()
         glUniform2f(uvScaleLoc, 17.0f, 11.0f); // Pass texture scale
 
         // Model transformations
-        glm::mat4 model(1.0f);
         model = glm::scale(model,glm::vec3(17.0f, 1.0f, 11.0f));
+        model = glm::translate(model, glm::vec3(0.0f, -1.0f, 0.0f));
         glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
 
         // Draw floor
         glBindVertexArray(VAO);
         glDrawArrays(GL_TRIANGLES, 30, 6);
+
+        // WALLS ------
+        // Bind diffuse map
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, wall_texture);
+
+        glUniform2f(uvScaleLoc, 1.0f, 1.0f); // Pass texture scale
+
+        // Draw front and back walls
+        for (float x = -9.0; x <= 9.0; x += 1.0)
+        {
+            model = glm::mat4(1.0f); // Reset model matrix
+            model = glm::translate(model, glm::vec3(x, 0.0f, 6.0f));
+            glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
+            glDrawArrays(GL_TRIANGLES, 0, 36);
+
+            model = glm::mat4(1.0f); // Reset model matrix
+            model = glm::translate(model, glm::vec3(x, 0.0f, -6.0f));
+            glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
+            glDrawArrays(GL_TRIANGLES, 0, 36);
+        }
+
+        // Draw side walls
+        for (float z = -5.0; z <= 5.0; z += 1.0)
+        {
+            // Reset model transformations
+            model = glm::mat4(1.0f);
+            model = glm::translate(model, glm::vec3(9, 0.0f, z));
+            model = glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+            glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
+            glDrawArrays(GL_TRIANGLES, 0, 36);
+
+            // Reset model transformations
+            model = glm::mat4(1.0f);
+            model = glm::translate(model, glm::vec3(-9, 0.0f, z));
+            model = glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+            glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
+            glDrawArrays(GL_TRIANGLES, 0, 36);
+        }
 
         glBindVertexArray(0);
 
