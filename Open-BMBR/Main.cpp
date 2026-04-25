@@ -3,7 +3,6 @@
 #include <ctime>
 #include <glm/ext/matrix_transform.hpp>
 #include <iostream>
-#include <vector>
 
 // GLEW
 #include <GL/glew.h>
@@ -27,6 +26,7 @@
 #include "Camera.h"
 #include "Model.h"
 #include "Shader.h"
+#include "Map.hpp"
 
 // Function prototypes
 GLuint LoadTexture2D(const char *path);
@@ -46,43 +46,53 @@ GLfloat lastY = HEIGHT / 2.0;
 bool keys[1024];
 bool firstMouse = true;
 
+// Map dimensions
+const int ROWS = 11, COLS = 29;
+
 float vertices[] = {
-    // Vertex coords     // Normal cords      // Texcoords
-    -0.5f, -0.5f, -0.5f, 0.0f,  0.0f,  -1.0f, 1.0f,  0.0f, // Back
-    0.5f,  -0.5f, -0.5f, 0.0f,  0.0f,  -1.0f, 0.0f,  0.0f,  0.5f,  0.5f,
-    -0.5f, 0.0f,  0.0f,  -1.0f, 0.0f,  1.0f,  0.5f,  0.5f,  -0.5f, 0.0f,
-    0.0f,  -1.0f, 0.0f,  1.0f,  -0.5f, 0.5f,  -0.5f, 0.0f,  0.0f,  -1.0f,
-    1.0f,  1.0f,  -0.5f, -0.5f, -0.5f, 0.0f,  0.0f,  -1.0f, 1.0f,  0.0f,
+  // Vertex coords     // Normal cords      // Texcoords 
+  -0.5f, -0.5f, -0.5f,  0.0f,  0.0f, -1.0f, 1.0f, 0.0f, // Back
+   0.5f, -0.5f, -0.5f,  0.0f,  0.0f, -1.0f, 0.0f, 0.0f,
+   0.5f,  0.5f, -0.5f,  0.0f,  0.0f, -1.0f, 0.0f, 1.0f,
+   0.5f,  0.5f, -0.5f,  0.0f,  0.0f, -1.0f, 0.0f, 1.0f,
+  -0.5f,  0.5f, -0.5f,  0.0f,  0.0f, -1.0f, 1.0f, 1.0f,
+  -0.5f, -0.5f, -0.5f,  0.0f,  0.0f, -1.0f, 1.0f, 0.0f,
 
-    -0.5f, -0.5f, 0.5f,  0.0f,  0.0f,  1.0f,  0.0f,  0.0f, // Front
-    0.5f,  -0.5f, 0.5f,  0.0f,  0.0f,  1.0f,  1.0f,  0.0f,  0.5f,  0.5f,
-    0.5f,  0.0f,  0.0f,  1.0f,  1.0f,  1.0f,  0.5f,  0.5f,  0.5f,  0.0f,
-    0.0f,  1.0f,  1.0f,  1.0f,  -0.5f, 0.5f,  0.5f,  0.0f,  0.0f,  1.0f,
-    0.0f,  1.0f,  -0.5f, -0.5f, 0.5f,  0.0f,  0.0f,  1.0f,  0.0f,  0.0f,
+  -0.5f, -0.5f,  0.5f,  0.0f,  0.0f,  1.0f, 0.0f, 0.0f, // Front
+   0.5f, -0.5f,  0.5f,  0.0f,  0.0f,  1.0f, 1.0f, 0.0f,
+   0.5f,  0.5f,  0.5f,  0.0f,  0.0f,  1.0f, 1.0f, 1.0f,
+   0.5f,  0.5f,  0.5f,  0.0f,  0.0f,  1.0f, 1.0f, 1.0f,
+  -0.5f,  0.5f,  0.5f,  0.0f,  0.0f,  1.0f, 0.0f, 1.0f,
+  -0.5f, -0.5f,  0.5f,  0.0f,  0.0f,  1.0f, 0.0f, 0.0f,
 
-    -0.5f, 0.5f,  0.5f,  -1.0f, 0.0f,  0.0f,  1.0f,  1.0f, // Left
-    -0.5f, 0.5f,  -0.5f, -1.0f, 0.0f,  0.0f,  0.0f,  1.0f,  -0.5f, -0.5f,
-    -0.5f, -1.0f, 0.0f,  0.0f,  0.0f,  0.0f,  -0.5f, -0.5f, -0.5f, -1.0f,
-    0.0f,  0.0f,  0.0f,  0.0f,  -0.5f, -0.5f, 0.5f,  -1.0f, 0.0f,  0.0f,
-    1.0f,  0.0f,  -0.5f, 0.5f,  0.5f,  -1.0f, 0.0f,  0.0f,  1.0f,  1.0f,
+  -0.5f,  0.5f,  0.5f, -1.0f,  0.0f,  0.0f, 1.0f, 1.0f, // Left
+  -0.5f,  0.5f, -0.5f, -1.0f,  0.0f,  0.0f, 0.0f, 1.0f,
+  -0.5f, -0.5f, -0.5f, -1.0f,  0.0f,  0.0f, 0.0f, 0.0f,
+  -0.5f, -0.5f, -0.5f, -1.0f,  0.0f,  0.0f, 0.0f, 0.0f,
+  -0.5f, -0.5f,  0.5f, -1.0f,  0.0f,  0.0f, 1.0f, 0.0f,
+  -0.5f,  0.5f,  0.5f, -1.0f,  0.0f,  0.0f, 1.0f, 1.0f,
 
-    0.5f,  0.5f,  0.5f,  1.0f,  0.0f,  0.0f,  0.0f,  1.0f, // Right
-    0.5f,  0.5f,  -0.5f, 1.0f,  0.0f,  0.0f,  1.0f,  1.0f,  0.5f,  -0.5f,
-    -0.5f, 1.0f,  0.0f,  0.0f,  1.0f,  0.0f,  0.5f,  -0.5f, -0.5f, 1.0f,
-    0.0f,  0.0f,  1.0f,  0.0f,  0.5f,  -0.5f, 0.5f,  1.0f,  0.0f,  0.0f,
-    0.0f,  0.0f,  0.5f,  0.5f,  0.5f,  1.0f,  0.0f,  0.0f,  0.0f,  1.0f,
+   0.5f,  0.5f,  0.5f,  1.0f,  0.0f,  0.0f, 0.0f, 1.0f, // Right
+   0.5f,  0.5f, -0.5f,  1.0f,  0.0f,  0.0f, 1.0f, 1.0f,
+   0.5f, -0.5f, -0.5f,  1.0f,  0.0f,  0.0f, 1.0f, 0.0f,
+   0.5f, -0.5f, -0.5f,  1.0f,  0.0f,  0.0f, 1.0f, 0.0f,
+   0.5f, -0.5f,  0.5f,  1.0f,  0.0f,  0.0f, 0.0f, 0.0f,
+   0.5f,  0.5f,  0.5f,  1.0f,  0.0f,  0.0f, 0.0f, 1.0f,
 
-    -0.5f, -0.5f, -0.5f, 0.0f,  -1.0f, 0.0f,  0.0f,  0.0f, // Bottom
-    0.5f,  -0.5f, -0.5f, 0.0f,  -1.0f, 0.0f,  1.0f,  0.0f,  0.5f,  -0.5f,
-    0.5f,  0.0f,  -1.0f, 0.0f,  1.0f,  1.0f,  0.5f,  -0.5f, 0.5f,  0.0f,
-    -1.0f, 0.0f,  1.0f,  1.0f,  -0.5f, -0.5f, 0.5f,  0.0f,  -1.0f, 0.0f,
-    0.0f,  1.0f,  -0.5f, -0.5f, -0.5f, 0.0f,  -1.0f, 0.0f,  0.0f,  0.0f,
+  -0.5f, -0.5f, -0.5f,  0.0f, -1.0f,  0.0f, 0.0f, 0.0f,// Bottom
+   0.5f, -0.5f, -0.5f,  0.0f, -1.0f,  0.0f, 1.0f, 0.0f,
+   0.5f, -0.5f,  0.5f,  0.0f, -1.0f,  0.0f, 1.0f, 1.0f,
+   0.5f, -0.5f,  0.5f,  0.0f, -1.0f,  0.0f, 1.0f, 1.0f,
+  -0.5f, -0.5f,  0.5f,  0.0f, -1.0f,  0.0f, 0.0f, 1.0f,
+  -0.5f, -0.5f, -0.5f,  0.0f, -1.0f,  0.0f, 0.0f, 0.0f,
 
-    -0.5f, 0.5f,  -0.5f, 0.0f,  1.0f,  0.0f,  0.0f,  1.0f, // Up
-    0.5f,  0.5f,  -0.5f, 0.0f,  1.0f,  0.0f,  1.0f,  1.0f,  0.5f,  0.5f,
-    0.5f,  0.0f,  1.0f,  0.0f,  1.0f,  0.0f,  0.5f,  0.5f,  0.5f,  0.0f,
-    1.0f,  0.0f,  1.0f,  0.0f,  -0.5f, 0.5f,  0.5f,  0.0f,  1.0f,  0.0f,
-    0.0f,  0.0f,  -0.5f, 0.5f,  -0.5f, 0.0f,  1.0f,  0.0f,  0.0f,  1.0f};
+  -0.5f,  0.5f, -0.5f,  0.0f,  1.0f,  0.0f, 0.0f, 1.0f, // Up
+   0.5f,  0.5f, -0.5f,  0.0f,  1.0f,  0.0f, 1.0f, 1.0f,
+   0.5f,  0.5f,  0.5f,  0.0f,  1.0f,  0.0f, 1.0f, 0.0f,
+   0.5f,  0.5f,  0.5f,  0.0f,  1.0f,  0.0f, 1.0f, 0.0f,
+  -0.5f,  0.5f,  0.5f,  0.0f,  1.0f,  0.0f, 0.0f, 0.0f,
+  -0.5f,  0.5f, -0.5f,  0.0f,  1.0f,  0.0f, 0.0f, 1.0f
+};
 
 // Deltatime
 GLfloat deltaTime = 0.0f; // Time between current frame and last frame
@@ -100,7 +110,7 @@ int main() {
 
   // Create a GLFWwindow object that we can use for GLFW's functions
   GLFWwindow *window =
-      glfwCreateWindow(WIDTH, HEIGHT, "Fuentes de luz", nullptr, nullptr);
+      glfwCreateWindow(WIDTH, HEIGHT, "Open-BMBR", nullptr, nullptr);
 
   if (nullptr == window) {
     std::cout << "Failed to create GLFW window" << std::endl;
@@ -151,16 +161,13 @@ int main() {
   glBindBuffer(GL_ARRAY_BUFFER, VBO);
   glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
   // Position attribute
-  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(GLfloat),
-                        (GLvoid *)0);
+  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(GLfloat), (GLvoid *)0);
   glEnableVertexAttribArray(0);
   // normal attribute
-  glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float),
-                        (void *)(3 * sizeof(float)));
+  glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void *)(3 * sizeof(float)));
   glEnableVertexAttribArray(1);
   // Texture Coordinate attribute
-  glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(GLfloat),
-                        (GLvoid *)(6 * sizeof(GLfloat)));
+  glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(GLfloat), (GLvoid *)(6 * sizeof(GLfloat)));
   glEnableVertexAttribArray(2);
   glBindVertexArray(0);
 
@@ -178,31 +185,20 @@ int main() {
   GLint viewLoc = glGetUniformLocation(lightingShader.Program, "view");
   GLint projLoc = glGetUniformLocation(lightingShader.Program, "projection");
 
-  GLint viewPosLoc = glGetUniformLocation(
-      lightingShader.Program, "viewPos"); // Uniform for camera position
+  GLint viewPosLoc = glGetUniformLocation(lightingShader.Program, "viewPos"); // Uniform for camera position
 
-  GLint uvScaleLoc = glGetUniformLocation(
-      lightingShader.Program, "uvScale"); // Uniform for texture scaling
+  GLint uvScaleLoc = glGetUniformLocation(lightingShader.Program, "uvScale"); // Uniform for texture scaling
 
   // Material properties
-  glUniform1i(glGetUniformLocation(lightingShader.Program, "material.diffuse"),
-              0);
-  glUniform1i(glGetUniformLocation(lightingShader.Program, "material.specular"),
-              1);
-  glUniform1f(
-      glGetUniformLocation(lightingShader.Program, "material.shininess"),
-      16.0f);
+  glUniform1i(glGetUniformLocation(lightingShader.Program, "material.diffuse"), 0);
+  glUniform1i(glGetUniformLocation(lightingShader.Program, "material.specular"), 1);
+  glUniform1f(glGetUniformLocation(lightingShader.Program, "material.shininess"), 16.0f);
 
   // Dir light properties
-  glUniform3f(
-      glGetUniformLocation(lightingShader.Program, "dirLight.direction"), -0.2f,
-      -1.0f, -0.3f);
-  glUniform3f(glGetUniformLocation(lightingShader.Program, "dirLight.ambient"),
-              0.3f, 0.3f, 0.3f);
-  glUniform3f(glGetUniformLocation(lightingShader.Program, "dirLight.diffuse"),
-              0.3f, 0.3f, 0.3f);
-  glUniform3f(glGetUniformLocation(lightingShader.Program, "dirLight.specular"),
-              0.0f, 0.0f, 0.0f);
+  glUniform3f( glGetUniformLocation(lightingShader.Program, "dirLight.direction"), -0.2f, -1.0f, -0.3f);
+  glUniform3f(glGetUniformLocation(lightingShader.Program, "dirLight.ambient"), 0.3f, 0.3f, 0.3f);
+  glUniform3f(glGetUniformLocation(lightingShader.Program, "dirLight.diffuse"), 0.3f, 0.3f, 0.3f);
+  glUniform3f(glGetUniformLocation(lightingShader.Program, "dirLight.specular"), 0.0f, 0.0f, 0.0f);
 
   // Initialize random seed
   srand(static_cast<unsigned int>(time(NULL)));
@@ -212,82 +208,23 @@ int main() {
   glGenTextures(1, &brick_texture);
   glBindTexture(GL_TEXTURE_2D, brick_texture);
   unsigned char darkGray[] = {64, 64, 64, 255};
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE,
-               darkGray);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, darkGray);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
-  // Map Generation (11 rows, 29 cols)
-  int mapGrid[11][29] = {0};
-  std::vector<std::pair<int, int>> destructibleBricks;
+  Map map(ROWS, COLS);
 
-  for (int row = 0; row < 11; row++) {
-    for (int col = 0; col < 29; col++) {
-      // Safe zone at top-left
-      if ((row == 0 && col == 0) || (row == 0 && col == 1) ||
-          (row == 1 && col == 0)) {
-        mapGrid[row][col] = 0;
-        continue;
-      }
-
-      if (row % 2 == 1 && col % 2 == 1) {
-        mapGrid[row][col] = 1; // Indestructible pillar
-      } else {
-        // 60% chance of destructible brick
-        if (rand() % 100 < 60) {
-          mapGrid[row][col] = 2; // Destructible brick
-          destructibleBricks.push_back(std::make_pair(row, col));
-        }
-      }
-    }
-  }
-
-  // Generate hidden items inside the destructible bricks
-  if (!destructibleBricks.empty()) {
-    // 1. Exit Door (represented as 3)
-    int exitIndex = rand() % destructibleBricks.size();
-    mapGrid[destructibleBricks[exitIndex].first]
-           [destructibleBricks[exitIndex].second] = 3;
-    destructibleBricks.erase(destructibleBricks.begin() + exitIndex);
-  }
-
-  if (!destructibleBricks.empty()) {
-    // 2. Power-Ups (represented as 4), randomly 1 or 2
-    int numPowerUps = (rand() % 2) + 1;
-    for (int i = 0; i < numPowerUps && !destructibleBricks.empty(); i++) {
-      int powerIndex = rand() % destructibleBricks.size();
-      mapGrid[destructibleBricks[powerIndex].first]
-             [destructibleBricks[powerIndex].second] = 4;
-      destructibleBricks.erase(destructibleBricks.begin() + powerIndex);
-    }
-  }
-
-  // Print map to console for verification
-  std::cout << "\n--- MAPA GENERADO ---" << std::endl;
-  for (int row = 0; row < 11; row++) {
-    for (int col = 0; col < 29; col++) {
-      if (mapGrid[row][col] == 0)
-        std::cout << "  "; // Empty
-      else if (mapGrid[row][col] == 1)
-        std::cout << "[]"; // Pillar
-      else if (mapGrid[row][col] == 2)
-        std::cout << "##"; // Brick
-      else if (mapGrid[row][col] == 3)
-        std::cout << "EE"; // Exit Door
-      else if (mapGrid[row][col] == 4)
-        std::cout << "PP"; // Power-up
-    }
-    std::cout << std::endl;
-  }
-  std::cout << "---------------------\n" << std::endl;
+  map.genMap();
+  map.genHidden();
+  map.printMap(); // Used to print map to console
 
   // Set the projection type and parameters
-  glm::mat4 projection = glm::perspective(
-      camera.GetZoom(), (GLfloat)SCREEN_WIDTH / (GLfloat)SCREEN_HEIGHT, 0.1f,
-      100.0f);
+  glm::mat4 projection = glm::perspective(camera.GetZoom(), 
+                                          (GLfloat)SCREEN_WIDTH / (GLfloat)SCREEN_HEIGHT, 
+                                          0.1f,
+                                          100.0f);
 
-  glUniformMatrix4fv(projLoc, 1, GL_FALSE,
-                     glm::value_ptr(projection)); // Pass the projection matrix
+  glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(projection)); // Pass the projection matrix
 
   // Game loop
   while (!glfwWindowShouldClose(window)) {
@@ -314,7 +251,9 @@ int main() {
     glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
 
     // Pass camera position
-    glUniform3f(viewPosLoc, camera.GetPosition().x, camera.GetPosition().y,
+    glUniform3f(viewPosLoc, 
+                camera.GetPosition().x, 
+                camera.GetPosition().y, 
                 camera.GetPosition().z);
 
     glm::mat4 model(1.0f);
@@ -330,7 +269,7 @@ int main() {
     glUniform2f(uvScaleLoc, 10.33f, 4.33f); // texture scale
 
     // Model transformations
-    model = glm::scale(model, glm::vec3(31.0f, 1.0f, 13.0f));
+    model = glm::scale(model, glm::vec3(COLS, 1.0f, ROWS));
     model = glm::translate(model, glm::vec3(0.0f, -1.0f, 0.0f));
     glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
 
@@ -349,46 +288,46 @@ int main() {
     glUniform2f(uvScaleLoc, 1.0f, 1.0f); // Pass texture scale
 
     // Draw front and back walls
-    for (float x = -15.0f; x <= 15.0f; x += 1.0f) {
+    float half_rows =(ROWS + 1)/2.0f; 
+    float half_cols =(COLS + 1)/2.0f; 
+    for (float x = -half_cols; x <= half_cols; x += 1.0f) {
       model = glm::mat4(1.0f); // Reset model matrix
-      model = glm::translate(model, glm::vec3(x, 0.0f, 6.0f));
+      model = glm::translate(model, glm::vec3(x, 0.0f, half_rows));
       glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
       glDrawArrays(GL_TRIANGLES, 0, 36);
 
       model = glm::mat4(1.0f); // Reset model matrix
-      model = glm::translate(model, glm::vec3(x, 0.0f, -6.0f));
+      model = glm::translate(model, glm::vec3(x, 0.0f, -half_rows));
       glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
       glDrawArrays(GL_TRIANGLES, 0, 36);
     }
 
     // Draw side walls
-    for (float z = -5.0f; z <= 5.0f; z += 1.0f) {
+    for (float z = -half_rows+1.0f; z <= half_rows-1.0f; z += 1.0f) {
       // Reset model transformations
       model = glm::mat4(1.0f);
-      model = glm::translate(model, glm::vec3(15.0f, 0.0f, z));
-      model =
-          glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+      model = glm::translate(model, glm::vec3(half_cols, 0.0f, z));
+      model = glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
       glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
       glDrawArrays(GL_TRIANGLES, 0, 36);
 
       // Reset model transformations
       model = glm::mat4(1.0f);
-      model = glm::translate(model, glm::vec3(-15.0f, 0.0f, z));
-      model =
-          glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+      model = glm::translate(model, glm::vec3(-half_cols, 0.0f, z));
+      model = glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
       glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
       glDrawArrays(GL_TRIANGLES, 0, 36);
     }
 
     // MAP OBJECTS ------
-    for (int row = 0; row < 11; row++) {
-      for (int col = 0; col < 29; col++) {
-        int cell = mapGrid[row][col];
+    for (int row = 0; row < ROWS; row++) {
+      for (int col = 0; col < COLS; col++) {
+        int cell = map.getCell(row, col);
         if (cell == 0)
           continue;
 
-        float xPos = col - 14.0f;
-        float zPos = row - 5.0f;
+        float xPos = col - (half_cols - 1);
+        float zPos = row - (half_rows - 1);
 
         if (cell == 1) {
           // Indestructible pillar
@@ -427,10 +366,8 @@ GLuint LoadTexture2D(const char *path) {
 
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
-                  GL_LINEAR_MIPMAP_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER,
-                  GL_NEAREST_MIPMAP_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST_MIPMAP_NEAREST);
 
   // Diffuse map
   unsigned char *image;
@@ -457,8 +394,7 @@ GLuint LoadTexture2D(const char *path) {
     return 0;
   }
 
-  glTexImage2D(GL_TEXTURE_2D, 0, format, textureWidth, textureHeight, 0, format,
-               GL_UNSIGNED_BYTE, image);
+  glTexImage2D(GL_TEXTURE_2D, 0, format, textureWidth, textureHeight, 0, format, GL_UNSIGNED_BYTE, image);
   glGenerateMipmap(GL_TEXTURE_2D);
 
   stbi_image_free(image);
