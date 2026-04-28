@@ -2,6 +2,7 @@
 #include <cstdlib>
 #include <ctime>
 #include <glm/ext/matrix_transform.hpp>
+#include <glm/ext/vector_float3.hpp>
 #include <iostream>
 
 // GLEW
@@ -20,13 +21,16 @@
 #include <glm/gtc/type_ptr.hpp>
 
 // Load Models
-#include "SOIL2/SOIL2.h"
+// #include "SOIL2/SOIL2.h"
 
 // Other includes
 #include "Camera.h"
-#include "Model.h"
+// #include "Model.h"
+#include "model_animation.h"
 #include "Shader.h"
 #include "Map.hpp"
+#include "animation.h"
+#include "animator.h"
 
 // Function prototypes
 GLuint LoadTexture2D(const char *path);
@@ -149,9 +153,12 @@ int main() {
 
   // SHADERS
   Shader lightingShader("Shader/lighting.vs", "Shader/lighting.frag");
+  Shader skeletalAnimShader("Shader/modelLoading.vs", "Shader/modelLoading.frag");
 
   // MODEL LOADING
-  // Model model((char*)"Models/model_name.obj");
+  Model robot("Models/Robot.gltf");
+  // Animation robotAnimation("Models/Robot.glb", &robot);
+  // Animator animator(&robotAnimation);
 
   // First, set the container's VAO (and VBO)
   GLuint VBO, VAO;
@@ -177,28 +184,19 @@ int main() {
   GLuint ground_specular = LoadTexture2D("images/aerial_rocks_02_rough_1k.png");
   GLuint wall_texture = LoadTexture2D("images/native_wall_1.png");
 
-  // Use cooresponding shader and set uniforms
-  lightingShader.Use();
-
-  // Get the uniform locations
-  GLint modelLoc = glGetUniformLocation(lightingShader.Program, "model");
-  GLint viewLoc = glGetUniformLocation(lightingShader.Program, "view");
-  GLint projLoc = glGetUniformLocation(lightingShader.Program, "projection");
-
-  GLint viewPosLoc = glGetUniformLocation(lightingShader.Program, "viewPos"); // Uniform for camera position
-
-  GLint uvScaleLoc = glGetUniformLocation(lightingShader.Program, "uvScale"); // Uniform for texture scaling
+  // Configuring lightingShader
+  lightingShader.use();
 
   // Material properties
-  glUniform1i(glGetUniformLocation(lightingShader.Program, "material.diffuse"), 0);
-  glUniform1i(glGetUniformLocation(lightingShader.Program, "material.specular"), 1);
-  glUniform1f(glGetUniformLocation(lightingShader.Program, "material.shininess"), 16.0f);
+  lightingShader.setInt("material.diffuse", 0);
+  lightingShader.setInt("material.specular", 1);
+  lightingShader.setFloat("material.shininess", 16.0f);
 
   // Dir light properties
-  glUniform3f( glGetUniformLocation(lightingShader.Program, "dirLight.direction"), -0.2f, -1.0f, -0.3f);
-  glUniform3f(glGetUniformLocation(lightingShader.Program, "dirLight.ambient"), 0.3f, 0.3f, 0.3f);
-  glUniform3f(glGetUniformLocation(lightingShader.Program, "dirLight.diffuse"), 0.3f, 0.3f, 0.3f);
-  glUniform3f(glGetUniformLocation(lightingShader.Program, "dirLight.specular"), 0.0f, 0.0f, 0.0f);
+  lightingShader.setVec3("dirLight.direction", -0.2f, -1.0f, -0.3f);
+  lightingShader.setVec3("dirLight.ambient", 0.3f, 0.3f, 0.3f);
+  lightingShader.setVec3("dirLight.diffuse", 0.3f, 0.3f, 0.3f);
+  lightingShader.setVec3("dirLight.specular", 0.0f, 0.0f, 0.0f);
 
   // Initialize random seed
   srand(static_cast<unsigned int>(time(NULL)));
@@ -216,15 +214,13 @@ int main() {
 
   map.genMap();
   map.genHidden();
-  map.printMap(); // Used to print map to console
+  // map.printMap(); // Used to print map to console for debugging
 
   // Set the projection type and parameters
   glm::mat4 projection = glm::perspective(camera.GetZoom(), 
                                           (GLfloat)SCREEN_WIDTH / (GLfloat)SCREEN_HEIGHT, 
                                           0.1f,
                                           100.0f);
-
-  glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(projection)); // Pass the projection matrix
 
   // Game loop
   while (!glfwWindowShouldClose(window)) {
@@ -238,23 +234,20 @@ int main() {
     glfwPollEvents();
     DoMovement();
 
+    // Update Animation
+    // animator.UpdateAnimation(deltaTime);
+
     // Clear the colorbuffer
     glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    lightingShader.Use();
+    lightingShader.use();
 
     // CAMERA ------
     glm::mat4 view = camera.GetViewMatrix();
-
-    // Pass view matrix
-    glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
-
-    // Pass camera position
-    glUniform3f(viewPosLoc, 
-                camera.GetPosition().x, 
-                camera.GetPosition().y, 
-                camera.GetPosition().z);
+    lightingShader.setMat4("view", view);
+    lightingShader.setMat4("projection", projection); // Set projection
+    lightingShader.setVec3("viewPos", camera.GetPosition());
 
     glm::mat4 model(1.0f);
 
@@ -266,12 +259,12 @@ int main() {
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, ground_specular);
 
-    glUniform2f(uvScaleLoc, 10.33f, 4.33f); // texture scale
+    lightingShader.setVec2("uvScale", 10.33f, 4.33f); // texture scale
 
     // Model transformations
     model = glm::scale(model, glm::vec3(COLS, 1.0f, ROWS));
     model = glm::translate(model, glm::vec3(0.0f, -1.0f, 0.0f));
-    glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
+    lightingShader.setMat4("model", model);
 
     // Draw floor
     glBindVertexArray(VAO);
@@ -285,7 +278,7 @@ int main() {
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, 0);
 
-    glUniform2f(uvScaleLoc, 1.0f, 1.0f); // Pass texture scale
+    lightingShader.setVec2("uvScale", 1.0f, 1.0f); // texture scale
 
     // Draw front and back walls
     float half_rows =(ROWS + 1)/2.0f; 
@@ -293,12 +286,12 @@ int main() {
     for (float x = -half_cols; x <= half_cols; x += 1.0f) {
       model = glm::mat4(1.0f); // Reset model matrix
       model = glm::translate(model, glm::vec3(x, 0.0f, half_rows));
-      glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
+      lightingShader.setMat4("model", model);
       glDrawArrays(GL_TRIANGLES, 0, 36);
 
       model = glm::mat4(1.0f); // Reset model matrix
       model = glm::translate(model, glm::vec3(x, 0.0f, -half_rows));
-      glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
+      lightingShader.setMat4("model", model);
       glDrawArrays(GL_TRIANGLES, 0, 36);
     }
 
@@ -308,14 +301,14 @@ int main() {
       model = glm::mat4(1.0f);
       model = glm::translate(model, glm::vec3(half_cols, 0.0f, z));
       model = glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-      glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
+      lightingShader.setMat4("model", model);
       glDrawArrays(GL_TRIANGLES, 0, 36);
 
       // Reset model transformations
       model = glm::mat4(1.0f);
       model = glm::translate(model, glm::vec3(-half_cols, 0.0f, z));
       model = glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-      glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
+      lightingShader.setMat4("model", model);
       glDrawArrays(GL_TRIANGLES, 0, 36);
     }
 
@@ -341,10 +334,27 @@ int main() {
 
         model = glm::mat4(1.0f);
         model = glm::translate(model, glm::vec3(xPos, 0.0f, zPos));
-        glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
+        lightingShader.setMat4("model", model);
         glDrawArrays(GL_TRIANGLES, 0, 36);
       }
     }
+
+    // ROBOT ------
+    skeletalAnimShader.use();
+    
+    // Send uniforms
+    skeletalAnimShader.setMat4("view", view);
+    skeletalAnimShader.setMat4("projection", projection);
+
+    // Send bones matrices
+    // auto transforms = animator.GetFinalBoneMatrices();
+    // for (size_t i = 0; i < transforms.size(); ++i)
+    //   skeletalAnimShader.setMat4("finalBonesMatrices[" + std::to_string(i) + "]", transforms[i]);
+
+    model = glm::mat4(1.0f);
+    model = glm::translate(model, glm::vec3(0.0f, 0.0f, 0.0f));
+    skeletalAnimShader.setMat4("model", model);
+    robot.Draw(skeletalAnimShader);
 
     glBindVertexArray(0);
 
