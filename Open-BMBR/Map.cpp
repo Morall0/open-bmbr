@@ -3,28 +3,10 @@
 #include <cstdlib>
 
 // Constructor
-Map::Map(int rows, int cols) {
-    this->rows = rows;
-    this->cols = cols;
-
-    mapGrid = new int*[rows];
-
-    for (int i = 0; i < rows; i++) {
-        mapGrid[i] = new int[cols];
-
-        for (int j = 0; j < cols; j++) {
-            mapGrid[i][j] = 0;
-        }
-    }
-}
-
-// Destructor
-Map::~Map() {
-    for (int i = 0; i < rows; i++) {
-        delete[] mapGrid[i];
-    }
-
-    delete[] mapGrid;
+Map::Map(int rows, int cols)
+    : rows(rows), cols(cols),
+      mapGrid(rows, std::vector<int>(cols, 0))
+{
 }
 
 // Generate the map matrix
@@ -112,6 +94,10 @@ void Map::printMap() {
 }
 
 // Get the given map cell
-int Map::getCell(int row, int col) {
-  return mapGrid[row][col];
+int Map::getCell(int row, int col) const
+{
+    if(row < 0 || row >= rows || col < 0 || col >= cols)
+        return 1; // Out of map bounds
+
+    return mapGrid[row][col];
 }
