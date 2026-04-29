@@ -32,12 +32,26 @@
 #include "animation.h"
 #include "animator.h"
 
+// Structure for Map Drawing functions
+struct MapAssets {
+    GLuint groundTexture;
+    GLuint groundSpecular;
+    GLuint wallTexture;
+    GLuint brickTexture;
+};
+
 // Function prototypes
 GLuint LoadTexture2D(const char *path);
 void KeyCallback(GLFWwindow *window, int key, int scancode, int action,
                  int mode);
 void MouseCallback(GLFWwindow *window, double xPos, double yPos);
 void DoMovement();
+
+// Map Draw Functions
+void DrawMap(const Map& map, Shader& lightingShader, const MapAssets& assets);
+void DrawFloor(Shader& lightingShader, const MapAssets& assets);
+void DrawWalls(Shader& lightingShader, GLuint wallTexture);
+void DrawMapBlocks(const Map& map, Shader& lightingShader, const MapAssets& assets);
 
 // Window dimensions
 const GLuint WIDTH = 800, HEIGHT = 600;
@@ -210,11 +224,19 @@ int main() {
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
+  // Map
+  // Create map logic
   Map map(ROWS, COLS);
-
   map.genMap();
   map.genHidden();
   // map.printMap(); // Used to print map to console for debugging
+
+  // Set map assets for drawing
+  MapAssets mapAssets;
+  mapAssets.groundTexture = ground_texture;
+  mapAssets.groundSpecular = ground_specular;
+  mapAssets.wallTexture = wall_texture;
+  mapAssets.brickTexture = brick_texture;
 
   // Set the projection type and parameters
   glm::mat4 projection = glm::perspective(camera.GetZoom(), 
@@ -249,95 +271,10 @@ int main() {
     lightingShader.setMat4("projection", projection); // Set projection
     lightingShader.setVec3("viewPos", camera.GetPosition());
 
-    glm::mat4 model(1.0f);
-
-    // FLOOR ------
-    // Bind diffuse map
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, ground_texture);
-    // Bind specular map
-    glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, ground_specular);
-
-    lightingShader.setVec2("uvScale", 10.33f, 4.33f); // texture scale
-
-    // Model transformations
-    model = glm::scale(model, glm::vec3(COLS, 1.0f, ROWS));
-    model = glm::translate(model, glm::vec3(0.0f, -1.0f, 0.0f));
-    lightingShader.setMat4("model", model);
-
-    // Draw floor
     glBindVertexArray(VAO);
-    glDrawArrays(GL_TRIANGLES, 30, 6);
 
-    // WALLS ------
-    // Bind diffuse map
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, wall_texture);
-    // Unbind specular map for walls so they don't use the floor's specular
-    glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, 0);
-
-    lightingShader.setVec2("uvScale", 1.0f, 1.0f); // texture scale
-
-    // Draw front and back walls
-    float half_rows =(ROWS + 1)/2.0f; 
-    float half_cols =(COLS + 1)/2.0f; 
-    for (float x = -half_cols; x <= half_cols; x += 1.0f) {
-      model = glm::mat4(1.0f); // Reset model matrix
-      model = glm::translate(model, glm::vec3(x, 0.0f, half_rows));
-      lightingShader.setMat4("model", model);
-      glDrawArrays(GL_TRIANGLES, 0, 36);
-
-      model = glm::mat4(1.0f); // Reset model matrix
-      model = glm::translate(model, glm::vec3(x, 0.0f, -half_rows));
-      lightingShader.setMat4("model", model);
-      glDrawArrays(GL_TRIANGLES, 0, 36);
-    }
-
-    // Draw side walls
-    for (float z = -half_rows+1.0f; z <= half_rows-1.0f; z += 1.0f) {
-      // Reset model transformations
-      model = glm::mat4(1.0f);
-      model = glm::translate(model, glm::vec3(half_cols, 0.0f, z));
-      model = glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-      lightingShader.setMat4("model", model);
-      glDrawArrays(GL_TRIANGLES, 0, 36);
-
-      // Reset model transformations
-      model = glm::mat4(1.0f);
-      model = glm::translate(model, glm::vec3(-half_cols, 0.0f, z));
-      model = glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-      lightingShader.setMat4("model", model);
-      glDrawArrays(GL_TRIANGLES, 0, 36);
-    }
-
-    // MAP OBJECTS ------
-    for (int row = 0; row < ROWS; row++) {
-      for (int col = 0; col < COLS; col++) {
-        int cell = map.getCell(row, col);
-        if (cell == 0)
-          continue;
-
-        float xPos = col - (half_cols - 1);
-        float zPos = row - (half_rows - 1);
-
-        if (cell == 1) {
-          // Indestructible pillar
-          glActiveTexture(GL_TEXTURE0);
-          glBindTexture(GL_TEXTURE_2D, wall_texture);
-        } else if (cell >= 2 && cell <= 4) {
-          // Destructible brick (including hidden exit and power-ups)
-          glActiveTexture(GL_TEXTURE0);
-          glBindTexture(GL_TEXTURE_2D, brick_texture);
-        }
-
-        model = glm::mat4(1.0f);
-        model = glm::translate(model, glm::vec3(xPos, 0.0f, zPos));
-        lightingShader.setMat4("model", model);
-        glDrawArrays(GL_TRIANGLES, 0, 36);
-      }
-    }
+    // MAP ------
+    DrawMap(map, lightingShader, mapAssets);
 
     // ROBOT ------
     skeletalAnimShader.use();
@@ -351,7 +288,7 @@ int main() {
     // for (size_t i = 0; i < transforms.size(); ++i)
     //   skeletalAnimShader.setMat4("finalBonesMatrices[" + std::to_string(i) + "]", transforms[i]);
 
-    model = glm::mat4(1.0f);
+    glm::mat4 model(1.0f);
     model = glm::translate(model, glm::vec3(0.0f, 0.0f, 0.0f));
     skeletalAnimShader.setMat4("model", model);
     robot.Draw(skeletalAnimShader);
@@ -409,6 +346,120 @@ GLuint LoadTexture2D(const char *path) {
 
   stbi_image_free(image);
   return texture;
+}
+
+
+void DrawMap(const Map& map, Shader& lightingShader, const MapAssets& assets) {
+  // FLOOR ------
+  DrawFloor(lightingShader, assets);
+
+  // WALLS ------
+  DrawWalls(lightingShader, assets.wallTexture);
+
+  // MAP OBJECTS ------
+  DrawMapBlocks(map, lightingShader, assets);
+
+}
+
+void DrawFloor(Shader& lightingShader, const MapAssets& assets) {
+  glm::mat4 model(1.0f);
+
+  // Bind diffuse map
+  glActiveTexture(GL_TEXTURE0);
+  glBindTexture(GL_TEXTURE_2D, assets.groundTexture);
+  // Bind specular map
+  glActiveTexture(GL_TEXTURE1);
+  glBindTexture(GL_TEXTURE_2D, assets.groundSpecular);
+
+  lightingShader.setVec2("uvScale", 10.33f, 4.33f); // texture scale
+
+  // Model transformations
+  model = glm::scale(model, glm::vec3(COLS, 1.0f, ROWS));
+  model = glm::translate(model, glm::vec3(0.0f, -1.0f, 0.0f));
+  lightingShader.setMat4("model", model);
+
+  // Draw floor
+  glDrawArrays(GL_TRIANGLES, 30, 6);
+}
+
+void DrawWalls(Shader& lightingShader, GLuint wallTexture) {
+  glm::mat4 model(1.0f);
+
+  // Bind diffuse map
+  glActiveTexture(GL_TEXTURE0);
+  glBindTexture(GL_TEXTURE_2D, wallTexture);
+  // Unbind specular map for walls so they don't use the floor's specular
+  glActiveTexture(GL_TEXTURE1);
+  glBindTexture(GL_TEXTURE_2D, 0);
+
+  lightingShader.setVec2("uvScale", 1.0f, 1.0f); // texture scale
+
+  // Draw front and back walls
+  float half_rows =(ROWS + 1)/2.0f;
+  float half_cols =(COLS + 1)/2.0f;
+
+  for (float x = -half_cols; x <= half_cols; x += 1.0f) {
+    model = glm::mat4(1.0f); // Reset model matrix
+    model = glm::translate(model, glm::vec3(x, 0.0f, half_rows));
+    lightingShader.setMat4("model", model);
+    glDrawArrays(GL_TRIANGLES, 0, 36);
+
+    model = glm::mat4(1.0f); // Reset model matrix
+    model = glm::translate(model, glm::vec3(x, 0.0f, -half_rows));
+    lightingShader.setMat4("model", model);
+    glDrawArrays(GL_TRIANGLES, 0, 36);
+  }
+
+  // Draw side walls
+  for (float z = -half_rows+1.0f; z <= half_rows-1.0f; z += 1.0f) {
+    // Reset model transformations
+    model = glm::mat4(1.0f);
+    model = glm::translate(model, glm::vec3(half_cols, 0.0f, z));
+    model = glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    lightingShader.setMat4("model", model);
+    glDrawArrays(GL_TRIANGLES, 0, 36);
+
+    // Reset model transformations
+    model = glm::mat4(1.0f);
+    model = glm::translate(model, glm::vec3(-half_cols, 0.0f, z));
+    model = glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    lightingShader.setMat4("model", model);
+    glDrawArrays(GL_TRIANGLES, 0, 36);
+  }
+}
+
+void DrawMapBlocks(const Map& map, Shader& lightingShader, const MapAssets& assets) {
+  glm::mat4 model(1.0f);
+
+  // Draw front and back walls
+  float half_rows =(ROWS + 1)/2.0f;
+  float half_cols =(COLS + 1)/2.0f;
+
+  for (int row = 0; row < ROWS; row++) {
+    for (int col = 0; col < COLS; col++) {
+      int cell = map.getCell(row, col);
+      if (cell == 0)
+        continue;
+
+      float xPos = col - (half_cols - 1);
+      float zPos = row - (half_rows - 1);
+
+      if (cell == 1) {
+        // Indestructible pillar
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, assets.wallTexture);
+      } else if (cell >= 2 && cell <= 4) {
+        // Destructible brick (including hidden exit and power-ups)
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, assets.brickTexture);
+      }
+
+      model = glm::mat4(1.0f);
+      model = glm::translate(model, glm::vec3(xPos, 0.0f, zPos));
+      lightingShader.setMat4("model", model);
+      glDrawArrays(GL_TRIANGLES, 0, 36);
+    }
+  }
 }
 
 // Moves/alters the camera positions based on user input
