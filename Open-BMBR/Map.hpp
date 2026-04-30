@@ -19,6 +19,8 @@ public:
     void genHidden();
     void printMap();
     int getCell(int row, int col) const;
+    int getTotalRows() const;
+    int getTotalCols() const;
 };
 
 #endif

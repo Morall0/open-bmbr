@@ -2,6 +2,9 @@
 #include <iostream>
 #include <cstdlib>
 
+// Probability of a block to be destructible
+const int destructibleProb = 60;
+
 // Constructor
 Map::Map(int rows, int cols)
     : rows(rows), cols(cols),
@@ -25,7 +28,7 @@ void Map::genMap() {
             if (row % 2 == 1 && col % 2 == 1) {
                 mapGrid[row][col] = 1; // Fixed cols
             } else {
-                if (rand() % 100 < 60) {
+                if (rand() % 100 < destructibleProb) {
                     mapGrid[row][col] = 2; // Destructible block
                     destructibleBricks.push_back(std::make_pair(row, col));
                 } else {
@@ -45,7 +48,7 @@ void Map::genHidden() {
         int r = destructibleBricks[exitIndex].first;
         int c = destructibleBricks[exitIndex].second;
 
-        mapGrid[r][c] = 3; // salida
+        mapGrid[r][c] = 3; // exit
 
         destructibleBricks.erase(destructibleBricks.begin() + exitIndex);
     }
@@ -100,4 +103,16 @@ int Map::getCell(int row, int col) const
         return 1; // Out of map bounds
 
     return mapGrid[row][col];
+}
+
+// Get the total number of rows
+int Map::getTotalRows() const
+{
+  return rows;
+}
+
+// Get the total number cols
+int Map::getTotalCols() const
+{
+  return cols;
 }

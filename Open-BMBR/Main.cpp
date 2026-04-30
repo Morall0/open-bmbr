@@ -24,13 +24,14 @@
 // #include "SOIL2/SOIL2.h"
 
 // Other includes
-#include "Camera.h"
-// #include "Model.h"
-#include "model_animation.h"
-#include "Shader.h"
-#include "Map.hpp"
 #include "animation.h"
 #include "animator.h"
+#include "Camera.h"
+#include "Map.hpp"
+// #include "Model.h"
+#include "model_animation.h"
+#include "Player.hpp"
+#include "Shader.h"
 
 // Structure for Map Drawing functions
 struct MapAssets {
@@ -45,7 +46,7 @@ GLuint LoadTexture2D(const char *path);
 void KeyCallback(GLFWwindow *window, int key, int scancode, int action,
                  int mode);
 void MouseCallback(GLFWwindow *window, double xPos, double yPos);
-void DoMovement();
+void DoMovement(Player& bomberman, const Map& map);
 
 // Map Draw Functions
 void DrawMap(const Map& map, Shader& lightingShader, const MapAssets& assets);
@@ -66,6 +67,9 @@ bool firstMouse = true;
 
 // Map dimensions
 const int ROWS = 11, COLS = 29;
+
+const float half_rows =(ROWS + 1)/2.0f;
+const float half_cols =(COLS + 1)/2.0f;
 
 float vertices[] = {
   // Vertex coords     // Normal cords      // Texcoords 
@@ -238,6 +242,10 @@ int main() {
   mapAssets.wallTexture = wall_texture;
   mapAssets.brickTexture = brick_texture;
 
+  // Player
+  // The initial position is in the secure zone map(0,0)
+  Player bomberman(glm::vec3(-half_cols + 1, -0.49f, -half_rows + 1), glm::vec2(0.0f, 0.0f));
+
   // Set the projection type and parameters
   glm::mat4 projection = glm::perspective(camera.GetZoom(), 
                                           (GLfloat)SCREEN_WIDTH / (GLfloat)SCREEN_HEIGHT, 
@@ -254,7 +262,7 @@ int main() {
     // Check if any events have been activated (key pressed, mouse moved etc.)
     // and call corresponding response functions
     glfwPollEvents();
-    DoMovement();
+    DoMovement(bomberman, map);
 
     // Update Animation
     // animator.UpdateAnimation(deltaTime);
@@ -289,7 +297,8 @@ int main() {
     //   skeletalAnimShader.setMat4("finalBonesMatrices[" + std::to_string(i) + "]", transforms[i]);
 
     glm::mat4 model(1.0f);
-    model = glm::translate(model, glm::vec3(0.0f, 0.0f, 0.0f));
+    model = glm::translate(model, bomberman.getPosition());
+    model = glm::scale(model, glm::vec3(0.3f, 0.3f, 0.3f));
     skeletalAnimShader.setMat4("model", model);
     robot.Draw(skeletalAnimShader);
 
@@ -394,10 +403,6 @@ void DrawWalls(Shader& lightingShader, GLuint wallTexture) {
 
   lightingShader.setVec2("uvScale", 1.0f, 1.0f); // texture scale
 
-  // Draw front and back walls
-  float half_rows =(ROWS + 1)/2.0f;
-  float half_cols =(COLS + 1)/2.0f;
-
   for (float x = -half_cols; x <= half_cols; x += 1.0f) {
     model = glm::mat4(1.0f); // Reset model matrix
     model = glm::translate(model, glm::vec3(x, 0.0f, half_rows));
@@ -431,10 +436,6 @@ void DrawWalls(Shader& lightingShader, GLuint wallTexture) {
 void DrawMapBlocks(const Map& map, Shader& lightingShader, const MapAssets& assets) {
   glm::mat4 model(1.0f);
 
-  // Draw front and back walls
-  float half_rows =(ROWS + 1)/2.0f;
-  float half_cols =(COLS + 1)/2.0f;
-
   for (int row = 0; row < ROWS; row++) {
     for (int col = 0; col < COLS; col++) {
       int cell = map.getCell(row, col);
@@ -463,22 +464,39 @@ void DrawMapBlocks(const Map& map, Shader& lightingShader, const MapAssets& asse
 }
 
 // Moves/alters the camera positions based on user input
-void DoMovement() {
+void DoMovement(Player& bomberman, const Map& map) {
   // Camera controls
-  if (keys[GLFW_KEY_W] || keys[GLFW_KEY_UP]) {
+  if (keys[GLFW_KEY_UP]) {
     camera.ProcessKeyboard(FORWARD, deltaTime);
   }
 
-  if (keys[GLFW_KEY_S] || keys[GLFW_KEY_DOWN]) {
+  if (keys[GLFW_KEY_DOWN]) {
     camera.ProcessKeyboard(BACKWARD, deltaTime);
   }
 
-  if (keys[GLFW_KEY_A] || keys[GLFW_KEY_LEFT]) {
+  if (keys[GLFW_KEY_LEFT]) {
     camera.ProcessKeyboard(LEFT, deltaTime);
   }
 
-  if (keys[GLFW_KEY_D] || keys[GLFW_KEY_RIGHT]) {
+  if (keys[GLFW_KEY_RIGHT]) {
     camera.ProcessKeyboard(RIGHT, deltaTime);
+  }
+
+  // Player controls
+  if (keys[GLFW_KEY_W]) {
+    bomberman.ProcessKeyboard(NORTH, deltaTime, map);
+  }
+
+  if (keys[GLFW_KEY_S]) {
+    bomberman.ProcessKeyboard(SOUTH, deltaTime, map);
+  }
+
+  if (keys[GLFW_KEY_A]) {
+    bomberman.ProcessKeyboard(WEST, deltaTime, map);
+  }
+
+  if (keys[GLFW_KEY_D]) {
+    bomberman.ProcessKeyboard(EAST, deltaTime, map);
   }
 }
 
