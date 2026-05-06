@@ -1,12 +1,17 @@
 #include "Player.hpp"
 #include <cmath>
+#include <glm/geometric.hpp>
 
 const GLfloat SPEED = 6.0f;
 
 // Constructor
-Player::Player (glm::vec3 position, glm::vec2 direction) 
-      : position(position), direction(glm::vec3(direction.x, 0.0f, direction.y)), speed(SPEED)
+Player::Player(glm::vec3 position, glm::vec2 facing)
+    : position(position), speed(SPEED)
 {
+    glm::vec3 dir = glm::normalize(glm::vec3(facing.x, 0.0f, facing.y));
+
+    // Quaternion -Z (forward base) to initial dir
+    orientation = glm::rotation(glm::vec3(0,0,1), dir);
 }
 
 glm::vec3 Player::getPosition()
@@ -14,9 +19,9 @@ glm::vec3 Player::getPosition()
   return this->position;
 }
 
-glm::vec2 Player::getDirection()
+glm::quat Player::getOrientation()
 {
-  return glm::vec2(this->direction.x, this->direction.z);
+  return orientation;
 }
 
 void Player::ProcessKeyboard(Player_Movement direction, GLfloat deltaTime, const Map& map)
@@ -36,6 +41,36 @@ void Player::ProcessKeyboard(Player_Movement direction, GLfloat deltaTime, const
   if (direction == WEST)
     move.x -= 1.0f;
 
+  // Progressive rotation
+  if (glm::length(move) > 0.0f)
+  {
+    glm::vec3 targetDir = glm::normalize(move);
+
+    // Current direction
+    glm::vec3 currentDir = orientation * glm::vec3(0,0,1);
+
+    // Necesary rotation (delta)
+    glm::quat targetRot = glm::rotation(currentDir, targetDir);
+
+    // angular velocity
+    float maxAngle = glm::radians(720.0f) * deltaTime;
+
+    // Turn rotation into angle
+    float angle = glm::angle(targetRot);
+
+    if (angle > 0.001f)
+    {
+      float t = glm::min(1.0f, maxAngle / angle);
+
+      // Interpolate rotation (slerp)
+      glm::quat step = glm::slerp(glm::quat(1,0,0,0), targetRot, t);
+
+      // Apply incremental rotation
+      orientation = glm::normalize(step * orientation);
+    }
+  }
+
+  // Position increment
   // X Axe
   glm::vec3 newPosX = position;
   newPosX.x += move.x * velocity;

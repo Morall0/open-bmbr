@@ -2,6 +2,7 @@
 #include <cstdlib>
 #include <ctime>
 #include <glm/ext/matrix_transform.hpp>
+#include <glm/ext/vector_float2.hpp>
 #include <glm/ext/vector_float3.hpp>
 #include <iostream>
 
@@ -12,7 +13,8 @@
 #include <GLFW/glfw3.h>
 
 // Other Libs
-#define STB_IMAGE_IMPLEMENTATION
+// #define STB_IMAGE_IMPLEMENTATION
+#include "bone.h"
 #include "stb_image.h"
 
 // GLM Mathematics
@@ -244,7 +246,7 @@ int main() {
 
   // Player
   // The initial position is in the secure zone map(0,0)
-  Player bomberman(glm::vec3(-half_cols + 1, -0.49f, -half_rows + 1), glm::vec2(0.0f, 0.0f));
+  Player bomberman(glm::vec3(-half_cols + 1, -0.49f, -half_rows + 1), glm::vec2(0.0f, 1.0f));
 
   // Set the projection type and parameters
   glm::mat4 projection = glm::perspective(camera.GetZoom(), 
@@ -297,7 +299,7 @@ int main() {
     //   skeletalAnimShader.setMat4("finalBonesMatrices[" + std::to_string(i) + "]", transforms[i]);
 
     glm::mat4 model(1.0f);
-    model = glm::translate(model, bomberman.getPosition());
+    model = glm::translate(model, bomberman.getPosition()) * glm::toMat4(bomberman.getOrientation());
     model = glm::scale(model, glm::vec3(0.3f, 0.3f, 0.3f));
     skeletalAnimShader.setMat4("model", model);
     robot.Draw(skeletalAnimShader);
