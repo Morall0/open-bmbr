@@ -2,7 +2,7 @@
 #include <cmath>
 #include <glm/geometric.hpp>
 
-const GLfloat SPEED = 6.0f;
+const GLfloat SPEED = 4.0f;
 
 // Constructor
 Player::Player(glm::vec3 position, glm::vec2 facing)

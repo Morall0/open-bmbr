@@ -33,6 +33,7 @@
 // #include "Model.h"
 #include "model_animation.h"
 #include "Player.hpp"
+#include "Enemy.hpp"
 #include "Shader.h"
 
 // Structure for Map Drawing functions
@@ -230,12 +231,24 @@ int main() {
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
+  // Generate a red texture for enemies
+  GLuint enemy_red_texture;
+  glGenTextures(1, &enemy_red_texture);
+  glBindTexture(GL_TEXTURE_2D, enemy_red_texture);
+  unsigned char redColor[] = {255, 0, 0, 255};
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, redColor);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
   // Map
   // Create map logic
   Map map(ROWS, COLS);
   map.genMap();
   map.genHidden();
   // map.printMap(); // Used to print map to console for debugging
+
+  // Spawning enemies
+  std::vector<Enemy> enemies = Enemy::SpawnEnemies(map, 6, 8);
 
   // Set map assets for drawing
   MapAssets mapAssets;
@@ -266,6 +279,10 @@ int main() {
     glfwPollEvents();
     DoMovement(bomberman, map);
 
+    for (auto& enemy : enemies) {
+      enemy.Update(deltaTime, map);
+    }
+
     // Update Animation
     // animator.UpdateAnimation(deltaTime);
 
@@ -285,6 +302,23 @@ int main() {
 
     // MAP ------
     DrawMap(map, lightingShader, mapAssets);
+
+    // ENEMIES ------
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, enemy_red_texture);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, 0); // No specular
+
+    lightingShader.setVec2("uvScale", 1.0f, 1.0f);
+
+    for (const auto& enemy : enemies) {
+        glm::mat4 model(1.0f);
+        // Translate to enemy position and apply orientation (though a simple cube doesn't show orientation well, we'll add it)
+        model = glm::translate(model, enemy.getPosition()) * glm::toMat4(enemy.getOrientation());
+        model = glm::scale(model, glm::vec3(0.8f, 0.8f, 0.8f)); // A bit smaller than the walls
+        lightingShader.setMat4("model", model);
+        glDrawArrays(GL_TRIANGLES, 0, 36);
+    }
 
     // ROBOT ------
     skeletalAnimShader.use();
