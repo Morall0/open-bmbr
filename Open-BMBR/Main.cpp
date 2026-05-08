@@ -50,13 +50,16 @@ GLuint LoadTexture2D(const char *path);
 void KeyCallback(GLFWwindow *window, int key, int scancode, int action,
                  int mode);
 void MouseCallback(GLFWwindow *window, double xPos, double yPos);
-void DoMovement(Player& bomberman, const Map& map, Bomb& bomb);
+void DoMovement(Player& bomberman, Map& map, Bomb& bomb);
 
 // Map Draw Functions
 void DrawMap(const Map& map, Shader& lightingShader, const MapAssets& assets);
 void DrawFloor(Shader& lightingShader, const MapAssets& assets);
 void DrawWalls(Shader& lightingShader, GLuint wallTexture);
 void DrawMapBlocks(const Map& map, Shader& lightingShader, const MapAssets& assets);
+
+// Bomb Draw Function
+void DrawBomb(Bomb& bomb, GLuint bomb_texture, Map& map, GLfloat currentTime, Shader& lightingShader);
 
 // Window dimensions
 const GLuint WIDTH = 800, HEIGHT = 600;
@@ -162,8 +165,7 @@ int main() {
 
   // Initialize GLEW to setup the OpenGL Function pointers
   if (GLEW_OK != glewInit()) {
-    std::cout << "Failed to initialize GLEW" << std::endl;
-    return EXIT_FAILURE;
+    std::cout << "Failed to initialize GLEW" << std::endl; return EXIT_FAILURE;
   }
 
   // OpenGL options
@@ -334,25 +336,7 @@ int main() {
     }
 
     // BOMBS ------
-    if (bomb.getBombState() == true) // If the bomb is activated
-    {
-      if (currentFrame >= bomb.getBombExpiration()) // If the bomb explodes
-        bomb.expireBomb();
-
-      // Texture
-      glActiveTexture(GL_TEXTURE0);
-      glBindTexture(GL_TEXTURE_2D, bomb_texture);
-      glActiveTexture(GL_TEXTURE1);
-      glBindTexture(GL_TEXTURE_2D, 0); // No specular
-
-      lightingShader.setVec2("uvScale", 1.0f, 1.0f);
-
-      glm::mat4 model(1.0f);
-      model = glm::translate(model, bomb.getBombPosition());
-      model = glm::scale(model, glm::vec3(0.9f, 0.9f, 0.9f));
-      lightingShader.setMat4("model", model);
-      glDrawArrays(GL_TRIANGLES, 0, 36);
-    }
+    DrawBomb(bomb, bomb_texture, map, currentFrame, lightingShader);
 
     // ROBOT ------
     skeletalAnimShader.use();
@@ -509,7 +493,7 @@ void DrawMapBlocks(const Map& map, Shader& lightingShader, const MapAssets& asse
   for (int row = 0; row < ROWS; row++) {
     for (int col = 0; col < COLS; col++) {
       int cell = map.getCell(row, col);
-      if (cell == 0)
+      if (cell == 0 || cell == 5)
         continue;
 
       float xPos = col - (half_cols - 1);
@@ -533,8 +517,30 @@ void DrawMapBlocks(const Map& map, Shader& lightingShader, const MapAssets& asse
   }
 }
 
+void DrawBomb(Bomb& bomb, GLuint bomb_texture, Map& map, GLfloat currentTime, Shader& lightingShader) {
+    if (bomb.getBombState() == true) // If the bomb is activated
+    {
+      if (currentTime >= bomb.getBombExpiration()) // If the bomb explodes
+        bomb.expireBomb(bomb.getBombPosition(), map);
+
+      // Texture
+      glActiveTexture(GL_TEXTURE0);
+      glBindTexture(GL_TEXTURE_2D, bomb_texture);
+      glActiveTexture(GL_TEXTURE1);
+      glBindTexture(GL_TEXTURE_2D, 0); // No specular
+
+      lightingShader.setVec2("uvScale", 1.0f, 1.0f);
+
+      glm::mat4 model(1.0f);
+      model = glm::translate(model, bomb.getBombPosition());
+      model = glm::scale(model, glm::vec3(0.9f, 0.9f, 0.9f));
+      lightingShader.setMat4("model", model);
+      glDrawArrays(GL_TRIANGLES, 0, 36);
+    }
+}
+
 // Moves/alters the camera positions based on user input
-void DoMovement(Player& bomberman, const Map& map, Bomb& bomb) {
+void DoMovement(Player& bomberman, Map& map, Bomb& bomb) {
   // Camera controls
   if (keys[GLFW_KEY_UP]) {
     camera.ProcessKeyboard(FORWARD, deltaTime);
@@ -571,7 +577,8 @@ void DoMovement(Player& bomberman, const Map& map, Bomb& bomb) {
 
   // Place bomb
   if (keys[GLFW_KEY_SPACE] && bomb.getBombState() == false) { 
-    bomb.activateBomb(bomberman.getPosition(), glfwGetTime());
+    bomb.activateBomb(bomberman.getPosition(), glfwGetTime(), map);
+    bomberman.setCanPassBomb(true);
   }
 }
 

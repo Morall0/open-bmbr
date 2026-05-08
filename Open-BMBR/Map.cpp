@@ -1,6 +1,8 @@
 #include "Map.hpp"
 #include <iostream>
 #include <cstdlib>
+#include <cmath>
+#include <utility>
 
 // Probability of a block to be destructible
 const int destructibleProb = 60;
@@ -8,6 +10,8 @@ const int destructibleProb = 60;
 // Constructor
 Map::Map(int rows, int cols)
     : rows(rows), cols(cols),
+      half_cols((cols + 1) / 2.0f),
+      half_rows((rows + 1) / 2.0f),
       mapGrid(rows, std::vector<int>(cols, 0))
 {
 }
@@ -88,6 +92,8 @@ void Map::printMap() {
                 std::cout << "EE";
             else if (mapGrid[row][col] == 4)
                 std::cout << "PP";
+            else if (mapGrid[row][col] == 5)
+                std::cout << "BB";
         }
 
         std::cout << std::endl;
@@ -115,4 +121,25 @@ int Map::getTotalRows() const
 int Map::getTotalCols() const
 {
   return cols;
+}
+
+void Map::setBomb(int row, int col)
+{
+  mapGrid[row][col] = 5;
+}
+
+void Map::unsetBomb(int row, int col)
+{
+  mapGrid[row][col] = 0;
+}
+
+MapIndices Map::toMapIndices(glm::vec3 position) const
+{
+  MapIndices indices;
+
+  indices.col = (int)std::round(position.x + (half_cols - 1));
+  indices.row = (int)std::round(position.z + (half_rows - 1));
+
+
+  return indices;
 }

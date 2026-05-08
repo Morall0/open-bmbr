@@ -22,6 +22,7 @@ public:
 
   glm::vec3 getPosition();
   glm::quat getOrientation();
+  void setCanPassBomb(bool value);
   void ProcessKeyboard(Player_Movement direction, GLfloat deltaTime, const Map& map);
   bool CheckCollision(glm::vec3 newPos, const Map& map);
 
@@ -31,6 +32,7 @@ private:
   glm::quat orientation;
   GLfloat speed;
   float halfHitbox = 0.3f;
+  bool canPassBomb;
 };
 
 #endif

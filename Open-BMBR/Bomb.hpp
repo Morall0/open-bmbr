@@ -3,7 +3,7 @@
 
 #include <glm/glm.hpp>
 // #include <GL/glew.h>
-// #include "Map.hpp"
+#include "Map.hpp"
 
 class Bomb {
 public:
@@ -11,8 +11,8 @@ public:
   Bomb (double bomb_duration, double y_bomb_position);
 
   void setBombPosition(glm::vec3 position);
-  void activateBomb(glm::vec3 position, double time);
-  void expireBomb();
+  void activateBomb(glm::vec3 position, double time, Map& map);
+  void expireBomb(glm::vec3 position, Map& map);
 
   glm::vec3 getBombPosition();
   double getBombExpiration();

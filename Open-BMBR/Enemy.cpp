@@ -1,4 +1,5 @@
 #include "Enemy.hpp"
+#include "Map.hpp"
 #include <cstdlib>
 #include <cmath>
 
@@ -115,8 +116,9 @@ void Enemy::pickNewTarget(const Map& map) {
     float half_cols = (map.getTotalCols() + 1) / 2.0f;
     float half_rows = (map.getTotalRows() + 1) / 2.0f;
 
-    int col = (int)std::round(position.x + (half_cols - 1));
-    int row = (int)std::round(position.z + (half_rows - 1));
+    MapIndices indices = map.toMapIndices(position);
+    int col = indices.col;
+    int row = indices.row;
 
     // Possible valid neighbors (up, down, left, right)
     std::vector<std::pair<int, int>> validNeighbors;

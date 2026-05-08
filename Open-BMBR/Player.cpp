@@ -1,4 +1,5 @@
 #include "Player.hpp"
+#include "Map.hpp"
 #include <cmath>
 #include <glm/geometric.hpp>
 
@@ -86,13 +87,18 @@ void Player::ProcessKeyboard(Player_Movement direction, GLfloat deltaTime, const
     position.z = newPosZ.z;
 }
 
+void Player::setCanPassBomb(bool value)
+{
+  canPassBomb = value;
+}
+
 bool Player::CheckCollision(glm::vec3 newPos, const Map& map)
 {
   // The "radius" of the player (hitbox)
   float half = halfHitbox;
 
-  float half_cols = (map.getTotalCols() + 1) / 2.0f;
-  float half_rows = (map.getTotalRows() + 1) / 2.0f;
+  // Flag to know if the player is inside the bomb
+  bool touchingBomb = false;
 
   // 4 corners of hitbox (real position)
   glm::vec3 corners[4] = {
@@ -105,14 +111,25 @@ bool Player::CheckCollision(glm::vec3 newPos, const Map& map)
   for (int i = 0; i < 4; i++)
   {
     // Convert real position into logic for map matrix
-    int col = (int)std::round(corners[i].x + (half_cols - 1));
-    int row = (int)std::round(corners[i].z + (half_rows - 1));
+    MapIndices indices = map.toMapIndices(corners[i]);
+    int col = indices.col;
+    int row = indices.row;
 
     int cell = map.getCell(row, col);
 
-    if (cell != 0) // Collision
+    if (cell == 5)
+    {
+      touchingBomb = true;
+
+      if(!canPassBomb)
+        return true;
+    }
+    else if (cell != 0) // Collision
       return true;
   }
+
+  if(!touchingBomb)
+    canPassBomb = false;
 
   return false;
 }
