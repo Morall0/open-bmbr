@@ -28,6 +28,7 @@
 // Other includes
 #include "animation.h"
 #include "animator.h"
+#include "Bomb.hpp"
 #include "Camera.h"
 #include "Map.hpp"
 // #include "Model.h"
@@ -49,7 +50,7 @@ GLuint LoadTexture2D(const char *path);
 void KeyCallback(GLFWwindow *window, int key, int scancode, int action,
                  int mode);
 void MouseCallback(GLFWwindow *window, double xPos, double yPos);
-void DoMovement(Player& bomberman, const Map& map);
+void DoMovement(Player& bomberman, const Map& map, Bomb& bomb);
 
 // Map Draw Functions
 void DrawMap(const Map& map, Shader& lightingShader, const MapAssets& assets);
@@ -240,6 +241,15 @@ int main() {
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
+  // Generate a red texture for enemies
+  GLuint bomb_texture;
+  glGenTextures(1, &bomb_texture);
+  glBindTexture(GL_TEXTURE_2D, bomb_texture);
+  unsigned char black_color[] = {255, 255, 255, 255};
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, black_color);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
   // Map
   // Create map logic
   Map map(ROWS, COLS);
@@ -261,6 +271,9 @@ int main() {
   // The initial position is in the secure zone map(0,0)
   Player bomberman(glm::vec3(-half_cols + 1, -0.49f, -half_rows + 1), glm::vec2(0.0f, 1.0f));
 
+  // Initializing Bomb object with duratin 3s and -0.1 y_pos
+  Bomb bomb(3.0f, -0.1f);
+
   // Set the projection type and parameters
   glm::mat4 projection = glm::perspective(camera.GetZoom(), 
                                           (GLfloat)SCREEN_WIDTH / (GLfloat)SCREEN_HEIGHT, 
@@ -277,7 +290,7 @@ int main() {
     // Check if any events have been activated (key pressed, mouse moved etc.)
     // and call corresponding response functions
     glfwPollEvents();
-    DoMovement(bomberman, map);
+    DoMovement(bomberman, map, bomb);
 
     for (auto& enemy : enemies) {
       enemy.Update(deltaTime, map);
@@ -318,6 +331,27 @@ int main() {
         model = glm::scale(model, glm::vec3(0.8f, 0.8f, 0.8f)); // A bit smaller than the walls
         lightingShader.setMat4("model", model);
         glDrawArrays(GL_TRIANGLES, 0, 36);
+    }
+
+    // BOMBS ------
+    if (bomb.getBombState() == true) // If the bomb is activated
+    {
+      if (currentFrame >= bomb.getBombExpiration()) // If the bomb explodes
+        bomb.expireBomb();
+
+      // Texture
+      glActiveTexture(GL_TEXTURE0);
+      glBindTexture(GL_TEXTURE_2D, bomb_texture);
+      glActiveTexture(GL_TEXTURE1);
+      glBindTexture(GL_TEXTURE_2D, 0); // No specular
+
+      lightingShader.setVec2("uvScale", 1.0f, 1.0f);
+
+      glm::mat4 model(1.0f);
+      model = glm::translate(model, bomb.getBombPosition());
+      model = glm::scale(model, glm::vec3(0.9f, 0.9f, 0.9f));
+      lightingShader.setMat4("model", model);
+      glDrawArrays(GL_TRIANGLES, 0, 36);
     }
 
     // ROBOT ------
@@ -500,7 +534,7 @@ void DrawMapBlocks(const Map& map, Shader& lightingShader, const MapAssets& asse
 }
 
 // Moves/alters the camera positions based on user input
-void DoMovement(Player& bomberman, const Map& map) {
+void DoMovement(Player& bomberman, const Map& map, Bomb& bomb) {
   // Camera controls
   if (keys[GLFW_KEY_UP]) {
     camera.ProcessKeyboard(FORWARD, deltaTime);
@@ -533,6 +567,11 @@ void DoMovement(Player& bomberman, const Map& map) {
 
   if (keys[GLFW_KEY_D]) {
     bomberman.ProcessKeyboard(EAST, deltaTime, map);
+  }
+
+  // Place bomb
+  if (keys[GLFW_KEY_SPACE] && bomb.getBombState() == false) { 
+    bomb.activateBomb(bomberman.getPosition(), glfwGetTime());
   }
 }
 
