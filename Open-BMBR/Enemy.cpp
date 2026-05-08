@@ -2,6 +2,9 @@
 #include "Map.hpp"
 #include <cstdlib>
 #include <cmath>
+#include <vector>
+#include <map>
+#include <set>
 
 //Constructor
 Enemy::Enemy(glm::vec3 startPos, EnemyType type) 
@@ -32,17 +35,39 @@ EnemyType Enemy::getType() const {
 std::vector<Enemy> Enemy::SpawnEnemies(const Map& map, int minEnemies, int maxEnemies) {
     std::vector<Enemy> enemies;
     int numEnemies = (rand() % (maxEnemies - minEnemies + 1)) + minEnemies;
+    int numOnils = rand() % 3; // 0 to 2 Onils
     
     int rows = map.getTotalRows();
     int cols = map.getTotalCols();
     float half_cols = (cols + 1) / 2.0f;
     float half_rows = (rows + 1) / 2.0f;
 
+    // Use DFS to find the entire safe zone connected to player's spawn (0,0)
+    std::vector<std::vector<bool>> safeZone(rows, std::vector<bool>(cols, false));
+    std::vector<std::pair<int, int>> stack;
+    stack.push_back({0, 0});
+    
+    while (!stack.empty()) {
+        auto [r, c] = stack.back();
+        stack.pop_back();
+        
+        if (r < 0 || r >= rows || c < 0 || c >= cols) continue;
+        if (map.getCell(r, c) != 0) continue;
+        if (safeZone[r][c]) continue;
+        
+        safeZone[r][c] = true;
+        
+        stack.push_back({r - 1, c});
+        stack.push_back({r + 1, c});
+        stack.push_back({r, c - 1});
+        stack.push_back({r, c + 1});
+    }
+
     std::vector<std::pair<int, int>> validSpawnSpots;
     for (int r = 0; r < rows; r++) {
         for (int c = 0; c < cols; c++) {
-            // Ignore player spawn safe zone
-            if ((r == 0 && c == 0) || (r == 0 && c == 1) || (r == 1 && c == 0)) continue;
+            // Ignore player spawn safe zone (all cells connected to 0,0)
+            if (safeZone[r][c]) continue;
 
             if (map.getCell(r, c) == 0) {
                 // Check neighbors to see if it's an open area (has several empty cells)
@@ -70,7 +95,8 @@ std::vector<Enemy> Enemy::SpawnEnemies(const Map& map, int minEnemies, int maxEn
         float zPos = r - (half_rows - 1);
         float yPos = -0.49f; // Same plane as player
         
-        enemies.push_back(Enemy(glm::vec3(xPos, yPos, zPos), EnemyType::BALLOM));
+        EnemyType type = (i < numOnils) ? EnemyType::ONIL : EnemyType::BALLOM;
+        enemies.push_back(Enemy(glm::vec3(xPos, yPos, zPos), type));
         
         // Remove to avoid spawning another enemy in the exact same spot
         validSpawnSpots.erase(validSpawnSpots.begin() + idx);
@@ -79,9 +105,9 @@ std::vector<Enemy> Enemy::SpawnEnemies(const Map& map, int minEnemies, int maxEn
     return enemies;
 }
 
-void Enemy::Update(float deltaTime, const Map& map) {
+void Enemy::Update(float deltaTime, const Map& map, glm::vec3 playerPos) {
     if (!isMoving) {
-        pickNewTarget(map);
+        pickNewTarget(map, playerPos);
     }
 
     if (isMoving) {
@@ -111,37 +137,121 @@ void Enemy::Update(float deltaTime, const Map& map) {
     }
 }
 
-void Enemy::pickNewTarget(const Map& map) {
-    // Current logical cell
+void Enemy::pickNewTarget(const Map& map, glm::vec3 playerPos) {
     float half_cols = (map.getTotalCols() + 1) / 2.0f;
     float half_rows = (map.getTotalRows() + 1) / 2.0f;
 
-    MapIndices indices = map.toMapIndices(position);
-    int col = indices.col;
-    int row = indices.row;
+    int col = (int)std::round(position.x + (half_cols - 1));
+    int row = (int)std::round(position.z + (half_rows - 1));
 
-    // Possible valid neighbors (up, down, left, right)
+    int playerCol = (int)std::round(playerPos.x + (half_cols - 1));
+    int playerRow = (int)std::round(playerPos.z + (half_rows - 1));
+
     std::vector<std::pair<int, int>> validNeighbors;
-
-    // Check North
     if (map.getCell(row - 1, col) == 0) validNeighbors.push_back({row - 1, col});
-    // Check South
     if (map.getCell(row + 1, col) == 0) validNeighbors.push_back({row + 1, col});
-    // Check West
     if (map.getCell(row, col - 1) == 0) validNeighbors.push_back({row, col - 1});
-    // Check East
     if (map.getCell(row, col + 1) == 0) validNeighbors.push_back({row, col + 1});
 
-    if (!validNeighbors.empty()) {
-        int rIndex = rand() % validNeighbors.size();
-        int targetRow = validNeighbors[rIndex].first;
-        int targetCol = validNeighbors[rIndex].second;
+    if (validNeighbors.empty()) return;
 
-        // Convert target logical cell back to physical position
-        targetPosition.x = targetCol - (half_cols - 1);
-        targetPosition.z = targetRow - (half_rows - 1);
-        targetPosition.y = position.y;
+    int targetRow = -1;
+    int targetCol = -1;
 
-        isMoving = true;
+    // Onil specific AI
+    if (type == EnemyType::ONIL) {
+        int chance = rand() % 100;
+        if (chance < 60) { // 60% chance to chase
+            auto nextMove = getNextAStarMove(map, row, col, playerRow, playerCol);
+            if (nextMove.first != -1) {
+                targetRow = nextMove.first;
+                targetCol = nextMove.second;
+            }
+        }
     }
+
+    // Default or Fallback random choice
+    if (targetRow == -1) {
+        int rIndex = rand() % validNeighbors.size();
+        targetRow = validNeighbors[rIndex].first;
+        targetCol = validNeighbors[rIndex].second;
+    }
+
+    // Convert target logical cell back to physical position
+    targetPosition.x = targetCol - (half_cols - 1);
+    targetPosition.z = targetRow - (half_rows - 1);
+    targetPosition.y = position.y;
+
+    isMoving = true;
+}
+
+std::pair<int, int> Enemy::getNextAStarMove(const Map& map, int startRow, int startCol, int targetRow, int targetCol) {
+    if (targetRow < 0 || targetRow >= map.getTotalRows() || targetCol < 0 || targetCol >= map.getTotalCols()) {
+        return {-1, -1};
+    }
+    
+    if (startRow == targetRow && startCol == targetCol) {
+        return {-1, -1};
+    }
+
+    using Point = std::pair<int, int>;
+    
+    auto heuristic = [](Point a, Point b) {
+        return std::abs(a.first - b.first) + std::abs(a.second - b.second);
+    };
+
+    std::map<Point, Point> cameFrom;
+    std::map<Point, int> gScore;
+    
+    auto comp = [&](Point a, Point b) {
+        int fA = gScore[a] + heuristic(a, {targetRow, targetCol});
+        int fB = gScore[b] + heuristic(b, {targetRow, targetCol});
+        if (fA == fB) return a < b; // Tie breaker
+        return fA < fB;
+    };
+    std::set<Point, decltype(comp)> openSet(comp);
+
+    Point start = {startRow, startCol};
+    Point goal = {targetRow, targetCol};
+
+    gScore[start] = 0;
+    openSet.insert(start);
+
+    while (!openSet.empty()) {
+        Point current = *openSet.begin();
+        openSet.erase(openSet.begin());
+
+        if (current == goal) {
+            // Reconstruct path
+            Point curr = goal;
+            while (cameFrom.find(curr) != cameFrom.end()) {
+                if (cameFrom[curr] == start) {
+                    return curr; // First step from start
+                }
+                curr = cameFrom[curr];
+            }
+            return {-1, -1};
+        }
+
+        std::vector<Point> neighbors = {
+            {current.first - 1, current.second},
+            {current.first + 1, current.second},
+            {current.first, current.second - 1},
+            {current.first, current.second + 1}
+        };
+
+        for (const auto& neighbor : neighbors) {
+            if (map.getCell(neighbor.first, neighbor.second) != 0) continue;
+
+            int tentative_gScore = gScore[current] + 1;
+
+            if (gScore.find(neighbor) == gScore.end() || tentative_gScore < gScore[neighbor]) {
+                cameFrom[neighbor] = current;
+                gScore[neighbor] = tentative_gScore;
+                openSet.insert(neighbor);
+            }
+        }
+    }
+
+    return {-1, -1};
 }

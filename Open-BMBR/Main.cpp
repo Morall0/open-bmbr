@@ -243,6 +243,15 @@ int main() {
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
+  // Generate a blue texture for Onil enemies
+  GLuint enemy_blue_texture;
+  glGenTextures(1, &enemy_blue_texture);
+  glBindTexture(GL_TEXTURE_2D, enemy_blue_texture);
+  unsigned char blueColor[] = {0, 0, 255, 255};
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, blueColor);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
   // Generate a red texture for enemies
   GLuint bomb_texture;
   glGenTextures(1, &bomb_texture);
@@ -295,7 +304,7 @@ int main() {
     DoMovement(bomberman, map, bomb);
 
     for (auto& enemy : enemies) {
-      enemy.Update(deltaTime, map);
+      enemy.Update(deltaTime, map, bomberman.getPosition());
     }
 
     // Update Animation
@@ -319,14 +328,19 @@ int main() {
     DrawMap(map, lightingShader, mapAssets);
 
     // ENEMIES ------
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, enemy_red_texture);
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, 0); // No specular
 
     lightingShader.setVec2("uvScale", 1.0f, 1.0f);
 
     for (const auto& enemy : enemies) {
+        glActiveTexture(GL_TEXTURE0);
+        if (enemy.getType() == EnemyType::BALLOM) {
+            glBindTexture(GL_TEXTURE_2D, enemy_red_texture);
+        } else {
+            glBindTexture(GL_TEXTURE_2D, enemy_blue_texture);
+        }
+
         glm::mat4 model(1.0f);
         // Translate to enemy position and apply orientation (though a simple cube doesn't show orientation well, we'll add it)
         model = glm::translate(model, enemy.getPosition()) * glm::toMat4(enemy.getOrientation());

@@ -16,7 +16,7 @@ class Enemy {
 public:
     Enemy(glm::vec3 startPos, EnemyType type);
 
-    void Update(float deltaTime, const Map& map);
+    void Update(float deltaTime, const Map& map, glm::vec3 playerPos);
     glm::vec3 getPosition() const;
     glm::quat getOrientation() const;
     EnemyType getType() const;
@@ -31,7 +31,8 @@ protected:
     float speed;
     bool isMoving;
 
-    void pickNewTarget(const Map& map);
+    void pickNewTarget(const Map& map, glm::vec3 playerPos);
+    std::pair<int, int> getNextAStarMove(const Map& map, int startRow, int startCol, int targetRow, int targetCol);
 };
 
 #endif
