@@ -128,9 +128,25 @@ void Map::setBomb(int row, int col)
   mapGrid[row][col] = 5;
 }
 
-void Map::unsetBomb(int row, int col)
+void Map::detonateBomb(int row, int col)
 {
-  mapGrid[row][col] = 0;
+  // Bomb neighbors cells
+  MapIndices neighbors[4] = {
+    {row - 1, col},
+    {row + 1, col},
+    {row, col - 1},
+    {row, col + 1}
+  };
+
+  // For each neighbor
+  for (int i = 0; i<4; i++)
+  {
+    int cell = getCell(neighbors[i].row, neighbors[i].col); // neighbor cell
+    if (cell == 2) // A destructible block
+      mapGrid[neighbors[i].row][neighbors[i].col] = 0; // Destroy block
+  }
+
+  mapGrid[row][col] = 0; // Destroy bomb
 }
 
 MapIndices Map::toMapIndices(glm::vec3 position) const

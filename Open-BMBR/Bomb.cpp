@@ -24,7 +24,7 @@ void Bomb::activateBomb(glm::vec3 position, double time, Map& map) {
 void Bomb::expireBomb(glm::vec3 position, Map& map) {
   bomb_state = false; 
   MapIndices indices = map.toMapIndices(position);
-  map.unsetBomb(indices.row, indices.col);
+  map.detonateBomb(indices.row, indices.col);
 }
 
 glm::vec3 Bomb::getBombPosition() {

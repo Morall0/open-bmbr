@@ -30,7 +30,7 @@ public:
     int getTotalRows() const;
     int getTotalCols() const;
     void setBomb(int row, int col);
-    void unsetBomb(int row, int col);
+    void detonateBomb(int row, int col);
     MapIndices toMapIndices(glm::vec3 position) const;
 };
 
