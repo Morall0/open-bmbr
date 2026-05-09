@@ -2,6 +2,7 @@
 #include "Map.hpp"
 #include <cmath>
 #include <glm/geometric.hpp>
+#include <iostream>
 
 const GLfloat SPEED = 4.0f;
 
@@ -72,14 +73,14 @@ void Player::ProcessKeyboard(Player_Movement direction, GLfloat deltaTime, const
   }
 
   // Position increment
-  // X Axe
+  // X Axis
   glm::vec3 newPosX = position;
   newPosX.x += move.x * velocity;
 
   if (!CheckCollision(newPosX, map))
     position.x = newPosX.x;
 
-  // Z Axe
+  // Z Axis
   glm::vec3 newPosZ = position;
   newPosZ.z += move.z * velocity;
 
@@ -108,6 +109,7 @@ bool Player::CheckCollision(glm::vec3 newPos, const Map& map)
     {newPos.x + half, 0.0f, newPos.z + half}
   };
 
+  // Check collision for each corner
   for (int i = 0; i < 4; i++)
   {
     // Convert real position into logic for map matrix
@@ -124,7 +126,7 @@ bool Player::CheckCollision(glm::vec3 newPos, const Map& map)
       if(!canPassBomb)
         return true;
     }
-    else if (cell != 0) // Collision
+    else if (cell != 0 && cell != 6) // Collision omitting flame
       return true;
   }
 

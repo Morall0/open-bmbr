@@ -60,6 +60,8 @@ void DrawMapBlocks(const Map& map, Shader& lightingShader, const MapAssets& asse
 
 // Bomb Draw Function
 void DrawBomb(Bomb& bomb, GLuint bomb_texture, Map& map, GLfloat currentTime, Shader& lightingShader);
+void DrawFire(Bomb& bomb, GLuint fire_texture, Map& map, glm::vec3 player_position, GLfloat currentTime, Shader& lightingShader);
+void DrawSideFlames(glm::vec3 bombPosition, Map& map, Shader& lightingShader);
 
 // Window dimensions
 const GLuint WIDTH = 800, HEIGHT = 600;
@@ -252,12 +254,21 @@ int main() {
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
-  // Generate a red texture for enemies
+  // Generate a black texture for bombs
   GLuint bomb_texture;
   glGenTextures(1, &bomb_texture);
   glBindTexture(GL_TEXTURE_2D, bomb_texture);
   unsigned char black_color[] = {255, 255, 255, 255};
   glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, black_color);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+  // Generate a yellow texture for fire
+  GLuint fire_texture;
+  glGenTextures(1, &fire_texture);
+  glBindTexture(GL_TEXTURE_2D, fire_texture);
+  unsigned char yellow_color[] = {255, 255, 0, 255};
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, yellow_color);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
@@ -282,8 +293,8 @@ int main() {
   // The initial position is in the secure zone map(0,0)
   Player bomberman(glm::vec3(-half_cols + 1, -0.49f, -half_rows + 1), glm::vec2(0.0f, 1.0f));
 
-  // Initializing Bomb object with duratin 3s and -0.1 y_pos
-  Bomb bomb(3.0f, -0.1f);
+  // Initializing Bomb object with duration and y_pos
+  Bomb bomb(2.5f, -0.1f);
 
   // Set the projection type and parameters
   glm::mat4 projection = glm::perspective(camera.GetZoom(), 
@@ -321,7 +332,6 @@ int main() {
     lightingShader.setMat4("view", view);
     lightingShader.setMat4("projection", projection); // Set projection
     lightingShader.setVec3("viewPos", camera.GetPosition());
-
     glBindVertexArray(VAO);
 
     // MAP ------
@@ -351,6 +361,7 @@ int main() {
 
     // BOMBS ------
     DrawBomb(bomb, bomb_texture, map, currentFrame, lightingShader);
+    DrawFire(bomb, fire_texture, map, bomberman.getPosition(), currentFrame, lightingShader);
 
     // ROBOT ------
     skeletalAnimShader.use();
@@ -435,7 +446,7 @@ void DrawMap(const Map& map, Shader& lightingShader, const MapAssets& assets) {
 
   // MAP OBJECTS ------
   DrawMapBlocks(map, lightingShader, assets);
-
+  // map.printMap();
 }
 
 void DrawFloor(Shader& lightingShader, const MapAssets& assets) {
@@ -507,7 +518,7 @@ void DrawMapBlocks(const Map& map, Shader& lightingShader, const MapAssets& asse
   for (int row = 0; row < ROWS; row++) {
     for (int col = 0; col < COLS; col++) {
       int cell = map.getCell(row, col);
-      if (cell == 0 || cell == 5)
+      if (cell == 0 || cell == 5 || cell == 6)
         continue;
 
       float xPos = col - (half_cols - 1);
@@ -534,8 +545,10 @@ void DrawMapBlocks(const Map& map, Shader& lightingShader, const MapAssets& asse
 void DrawBomb(Bomb& bomb, GLuint bomb_texture, Map& map, GLfloat currentTime, Shader& lightingShader) {
     if (bomb.getBombState() == true) // If the bomb is activated
     {
-      if (currentTime >= bomb.getBombExpiration()) // If the bomb explodes
-        bomb.expireBomb(bomb.getBombPosition(), map);
+      glm::vec3 bomb_position = bomb.getBombPosition();
+      if (currentTime >= bomb.getBombExpiration()) { // If the bomb explodes
+        bomb.expireBomb(bomb_position, map, currentTime);
+      }
 
       // Texture
       glActiveTexture(GL_TEXTURE0);
@@ -546,11 +559,88 @@ void DrawBomb(Bomb& bomb, GLuint bomb_texture, Map& map, GLfloat currentTime, Sh
       lightingShader.setVec2("uvScale", 1.0f, 1.0f);
 
       glm::mat4 model(1.0f);
-      model = glm::translate(model, bomb.getBombPosition());
+      model = glm::translate(model, bomb_position);
       model = glm::scale(model, glm::vec3(0.9f, 0.9f, 0.9f));
       lightingShader.setMat4("model", model);
       glDrawArrays(GL_TRIANGLES, 0, 36);
     }
+}
+
+void DrawFire(Bomb& bomb, GLuint fire_texture, Map& map, glm::vec3 player_position, GLfloat currentTime, Shader& lightingShader) {
+
+    if (bomb.isFireActive() == true) // If the bomb already exploded
+    {
+      glm::vec3 bombPosition = bomb.getBombPosition();
+      MapIndices grid_position = map.toMapIndices(bombPosition);
+
+      bomb.checkCollision(player_position, map);
+
+      if (currentTime >= bomb.getFireExpiration()) { // If the bomb explodes
+        bomb.putOutFire(grid_position, map);
+      }
+
+      // Texture
+      glActiveTexture(GL_TEXTURE0);
+      glBindTexture(GL_TEXTURE_2D, fire_texture);
+      glActiveTexture(GL_TEXTURE1);
+      glBindTexture(GL_TEXTURE_2D, 0); // No specular
+
+      lightingShader.setVec2("uvScale", 1.0f, 1.0f);
+
+      // Drawing the center
+      glm::mat4 model(1.0f);
+      model = glm::translate(model, bombPosition);
+      model = glm::scale(model, glm::vec3(1.0f, 1.0f, 1.0f));
+      lightingShader.setMat4("model", model);
+      glDrawArrays(GL_TRIANGLES, 0, 36);
+
+      DrawSideFlames(bombPosition, map, lightingShader);
+    }
+}
+
+void DrawSideFlames(glm::vec3 bombPosition, Map& map, Shader& lightingShader) {
+  glm::mat4 model(1.0f);
+
+  // Drawing the side flames (two per iteration)
+  for (int i = 0; i < 2; i++) {
+    pair<GLfloat, GLfloat> increments;
+
+    if (i % 2 == 0)
+      increments = {1, 0}; // X axis side flames
+    else
+      increments = {0, 1}; // Z axis side flames
+
+    // Calculate the 1st flame position
+    glm::vec3 sideflame_position = bombPosition + glm::vec3(increments.first, 0.0f, increments.second);
+    MapIndices grid_position = map.toMapIndices(sideflame_position);
+    int cell = map.getCell(grid_position.row, grid_position.col);
+
+    // If there aren't indestructible blocks
+    if (cell == 6) {
+      // Draw 1st flame
+      model = glm::mat4(1.0f);
+      model = glm::translate(model, sideflame_position);
+      model = glm::scale(model, glm::vec3(0.9f, 0.9f, 0.9f));
+      lightingShader.setMat4("model", model);
+      glDrawArrays(GL_TRIANGLES, 0, 36);
+    }
+
+
+    // Calculate the 2nd flame position
+    sideflame_position = bombPosition + glm::vec3(-increments.first, 0.0f, -increments.second);
+    grid_position = map.toMapIndices(sideflame_position);
+    cell = map.getCell(grid_position.row, grid_position.col);
+
+    // If there aren't indestructible blocks
+    if (cell == 6 ) {
+      // Draw 2nd flame
+      model = glm::mat4(1.0f);
+      model = glm::translate(model, sideflame_position);
+      model = glm::scale(model, glm::vec3(0.9f, 0.9f, 0.9f));
+      lightingShader.setMat4("model", model);
+      glDrawArrays(GL_TRIANGLES, 0, 36);
+    }
+  }
 }
 
 // Moves/alters the camera positions based on user input
@@ -590,7 +680,8 @@ void DoMovement(Player& bomberman, Map& map, Bomb& bomb) {
   }
 
   // Place bomb
-  if (keys[GLFW_KEY_SPACE] && bomb.getBombState() == false) { 
+  bool can_place_bomb = bomb.getBombState() == false && bomb.isFireActive() == false;
+  if (keys[GLFW_KEY_SPACE] && can_place_bomb) {
     bomb.activateBomb(bomberman.getPosition(), glfwGetTime(), map);
     bomberman.setCanPassBomb(true);
   }

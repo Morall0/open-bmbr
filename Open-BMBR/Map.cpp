@@ -76,7 +76,7 @@ void Map::genHidden() {
 }
 
 // Prints map to console for debugging
-void Map::printMap() {
+void Map::printMap() const {
     std::cout << "\n--- MAP GENERATED ---\n";
 
     for (int row = 0; row < rows; row++) {
@@ -94,6 +94,8 @@ void Map::printMap() {
                 std::cout << "PP";
             else if (mapGrid[row][col] == 5)
                 std::cout << "BB";
+            else if (mapGrid[row][col] == 6)
+                std::cout << "FF";
         }
 
         std::cout << std::endl;
@@ -123,13 +125,38 @@ int Map::getTotalCols() const
   return cols;
 }
 
-void Map::setBomb(int row, int col)
+void Map::setBomb(MapIndices indices)
 {
-  mapGrid[row][col] = 5;
+  mapGrid[indices.row][indices.col] = 5;
 }
 
-void Map::detonateBomb(int row, int col)
+void Map::setFire(MapIndices indices)
 {
+  int row = indices.row;
+  int col = indices.col;
+
+  mapGrid[row][col] = 6; // Set the center
+
+  MapIndices neighbors[4] = {
+    {row - 1, col},
+    {row + 1, col},
+    {row, col - 1},
+    {row, col + 1}
+  };
+
+  // For each neighbor
+  for (int i = 0; i < 4; i++)
+  {
+    int cell = getCell(neighbors[i].row, neighbors[i].col); // neighbor cell
+    if (cell == 0) // Air cell
+      mapGrid[neighbors[i].row][neighbors[i].col] = 6; // Set fire number id
+  }
+}
+
+void Map::detonateBomb(MapIndices indices) // TODO: Catch Doors and powerups
+{
+  int row = indices.row;
+  int col = indices.col;
   // Bomb neighbors cells
   MapIndices neighbors[4] = {
     {row - 1, col},
@@ -139,7 +166,7 @@ void Map::detonateBomb(int row, int col)
   };
 
   // For each neighbor
-  for (int i = 0; i<4; i++)
+  for (int i = 0; i < 4; i++)
   {
     int cell = getCell(neighbors[i].row, neighbors[i].col); // neighbor cell
     if (cell == 2) // A destructible block
@@ -147,6 +174,29 @@ void Map::detonateBomb(int row, int col)
   }
 
   mapGrid[row][col] = 0; // Destroy bomb
+}
+
+void Map::extinguishFire(MapIndices indices)
+{
+  int row = indices.row;
+  int col = indices.col;
+
+  mapGrid[row][col] = 0;
+
+  MapIndices neighbors[4] = {
+    {row - 1, col},
+    {row + 1, col},
+    {row, col - 1},
+    {row, col + 1}
+  };
+
+  // For each neighbor
+  for (int i = 0; i < 4; i++)
+  {
+    int cell = getCell(neighbors[i].row, neighbors[i].col); // neighbor cell
+    if (cell == 6) // Fire cell
+      mapGrid[neighbors[i].row][neighbors[i].col] = 0; // Set air id
+  }
 }
 
 MapIndices Map::toMapIndices(glm::vec3 position) const
