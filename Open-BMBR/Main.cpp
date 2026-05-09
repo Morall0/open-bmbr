@@ -26,23 +26,23 @@
 // #include "SOIL2/SOIL2.h"
 
 // Other includes
-#include "animation.h"
-#include "animator.h"
 #include "Bomb.hpp"
 #include "Camera.h"
 #include "Map.hpp"
+#include "animation.h"
+#include "animator.h"
 // #include "Model.h"
-#include "model_animation.h"
-#include "Player.hpp"
 #include "Enemy.hpp"
+#include "Player.hpp"
 #include "Shader.h"
+#include "model_animation.h"
 
 // Structure for Map Drawing functions
 struct MapAssets {
-    GLuint groundTexture;
-    GLuint groundSpecular;
-    GLuint wallTexture;
-    GLuint brickTexture;
+  GLuint groundTexture;
+  GLuint groundSpecular;
+  GLuint wallTexture;
+  GLuint brickTexture;
 };
 
 // Function prototypes
@@ -50,16 +50,18 @@ GLuint LoadTexture2D(const char *path);
 void KeyCallback(GLFWwindow *window, int key, int scancode, int action,
                  int mode);
 void MouseCallback(GLFWwindow *window, double xPos, double yPos);
-void DoMovement(Player& bomberman, Map& map, Bomb& bomb);
+void DoMovement(Player &bomberman, Map &map, Bomb &bomb);
 
 // Map Draw Functions
-void DrawMap(const Map& map, Shader& lightingShader, const MapAssets& assets);
-void DrawFloor(Shader& lightingShader, const MapAssets& assets);
-void DrawWalls(Shader& lightingShader, GLuint wallTexture);
-void DrawMapBlocks(const Map& map, Shader& lightingShader, const MapAssets& assets);
+void DrawMap(const Map &map, Shader &lightingShader, const MapAssets &assets);
+void DrawFloor(Shader &lightingShader, const MapAssets &assets);
+void DrawWalls(Shader &lightingShader, GLuint wallTexture);
+void DrawMapBlocks(const Map &map, Shader &lightingShader,
+                   const MapAssets &assets);
 
 // Bomb Draw Function
-void DrawBomb(Bomb& bomb, GLuint bomb_texture, Map& map, GLfloat currentTime, Shader& lightingShader);
+void DrawBomb(Bomb &bomb, GLuint bomb_texture, Map &map, GLfloat currentTime,
+              Shader &lightingShader);
 
 // Window dimensions
 const GLuint WIDTH = 800, HEIGHT = 600;
@@ -72,56 +74,52 @@ GLfloat lastY = HEIGHT / 2.0;
 bool keys[1024];
 bool firstMouse = true;
 
+enum CameraMode { MODE_FREE, MODE_FIRST_PERSON };
+CameraMode currentCameraMode = MODE_FREE;
+
 // Map dimensions
 const int ROWS = 11, COLS = 29;
 
-const float half_rows =(ROWS + 1)/2.0f;
-const float half_cols =(COLS + 1)/2.0f;
+const float half_rows = (ROWS + 1) / 2.0f;
+const float half_cols = (COLS + 1) / 2.0f;
 
 float vertices[] = {
-  // Vertex coords     // Normal cords      // Texcoords 
-  -0.5f, -0.5f, -0.5f,  0.0f,  0.0f, -1.0f, 1.0f, 0.0f, // Back
-   0.5f, -0.5f, -0.5f,  0.0f,  0.0f, -1.0f, 0.0f, 0.0f,
-   0.5f,  0.5f, -0.5f,  0.0f,  0.0f, -1.0f, 0.0f, 1.0f,
-   0.5f,  0.5f, -0.5f,  0.0f,  0.0f, -1.0f, 0.0f, 1.0f,
-  -0.5f,  0.5f, -0.5f,  0.0f,  0.0f, -1.0f, 1.0f, 1.0f,
-  -0.5f, -0.5f, -0.5f,  0.0f,  0.0f, -1.0f, 1.0f, 0.0f,
+    // Vertex coords     // Normal cords      // Texcoords
+    -0.5f, -0.5f, -0.5f, 0.0f,  0.0f,  -1.0f, 1.0f,  0.0f, // Back
+    0.5f,  -0.5f, -0.5f, 0.0f,  0.0f,  -1.0f, 0.0f,  0.0f,  0.5f,  0.5f,
+    -0.5f, 0.0f,  0.0f,  -1.0f, 0.0f,  1.0f,  0.5f,  0.5f,  -0.5f, 0.0f,
+    0.0f,  -1.0f, 0.0f,  1.0f,  -0.5f, 0.5f,  -0.5f, 0.0f,  0.0f,  -1.0f,
+    1.0f,  1.0f,  -0.5f, -0.5f, -0.5f, 0.0f,  0.0f,  -1.0f, 1.0f,  0.0f,
 
-  -0.5f, -0.5f,  0.5f,  0.0f,  0.0f,  1.0f, 0.0f, 0.0f, // Front
-   0.5f, -0.5f,  0.5f,  0.0f,  0.0f,  1.0f, 1.0f, 0.0f,
-   0.5f,  0.5f,  0.5f,  0.0f,  0.0f,  1.0f, 1.0f, 1.0f,
-   0.5f,  0.5f,  0.5f,  0.0f,  0.0f,  1.0f, 1.0f, 1.0f,
-  -0.5f,  0.5f,  0.5f,  0.0f,  0.0f,  1.0f, 0.0f, 1.0f,
-  -0.5f, -0.5f,  0.5f,  0.0f,  0.0f,  1.0f, 0.0f, 0.0f,
+    -0.5f, -0.5f, 0.5f,  0.0f,  0.0f,  1.0f,  0.0f,  0.0f, // Front
+    0.5f,  -0.5f, 0.5f,  0.0f,  0.0f,  1.0f,  1.0f,  0.0f,  0.5f,  0.5f,
+    0.5f,  0.0f,  0.0f,  1.0f,  1.0f,  1.0f,  0.5f,  0.5f,  0.5f,  0.0f,
+    0.0f,  1.0f,  1.0f,  1.0f,  -0.5f, 0.5f,  0.5f,  0.0f,  0.0f,  1.0f,
+    0.0f,  1.0f,  -0.5f, -0.5f, 0.5f,  0.0f,  0.0f,  1.0f,  0.0f,  0.0f,
 
-  -0.5f,  0.5f,  0.5f, -1.0f,  0.0f,  0.0f, 1.0f, 1.0f, // Left
-  -0.5f,  0.5f, -0.5f, -1.0f,  0.0f,  0.0f, 0.0f, 1.0f,
-  -0.5f, -0.5f, -0.5f, -1.0f,  0.0f,  0.0f, 0.0f, 0.0f,
-  -0.5f, -0.5f, -0.5f, -1.0f,  0.0f,  0.0f, 0.0f, 0.0f,
-  -0.5f, -0.5f,  0.5f, -1.0f,  0.0f,  0.0f, 1.0f, 0.0f,
-  -0.5f,  0.5f,  0.5f, -1.0f,  0.0f,  0.0f, 1.0f, 1.0f,
+    -0.5f, 0.5f,  0.5f,  -1.0f, 0.0f,  0.0f,  1.0f,  1.0f, // Left
+    -0.5f, 0.5f,  -0.5f, -1.0f, 0.0f,  0.0f,  0.0f,  1.0f,  -0.5f, -0.5f,
+    -0.5f, -1.0f, 0.0f,  0.0f,  0.0f,  0.0f,  -0.5f, -0.5f, -0.5f, -1.0f,
+    0.0f,  0.0f,  0.0f,  0.0f,  -0.5f, -0.5f, 0.5f,  -1.0f, 0.0f,  0.0f,
+    1.0f,  0.0f,  -0.5f, 0.5f,  0.5f,  -1.0f, 0.0f,  0.0f,  1.0f,  1.0f,
 
-   0.5f,  0.5f,  0.5f,  1.0f,  0.0f,  0.0f, 0.0f, 1.0f, // Right
-   0.5f,  0.5f, -0.5f,  1.0f,  0.0f,  0.0f, 1.0f, 1.0f,
-   0.5f, -0.5f, -0.5f,  1.0f,  0.0f,  0.0f, 1.0f, 0.0f,
-   0.5f, -0.5f, -0.5f,  1.0f,  0.0f,  0.0f, 1.0f, 0.0f,
-   0.5f, -0.5f,  0.5f,  1.0f,  0.0f,  0.0f, 0.0f, 0.0f,
-   0.5f,  0.5f,  0.5f,  1.0f,  0.0f,  0.0f, 0.0f, 1.0f,
+    0.5f,  0.5f,  0.5f,  1.0f,  0.0f,  0.0f,  0.0f,  1.0f, // Right
+    0.5f,  0.5f,  -0.5f, 1.0f,  0.0f,  0.0f,  1.0f,  1.0f,  0.5f,  -0.5f,
+    -0.5f, 1.0f,  0.0f,  0.0f,  1.0f,  0.0f,  0.5f,  -0.5f, -0.5f, 1.0f,
+    0.0f,  0.0f,  1.0f,  0.0f,  0.5f,  -0.5f, 0.5f,  1.0f,  0.0f,  0.0f,
+    0.0f,  0.0f,  0.5f,  0.5f,  0.5f,  1.0f,  0.0f,  0.0f,  0.0f,  1.0f,
 
-  -0.5f, -0.5f, -0.5f,  0.0f, -1.0f,  0.0f, 0.0f, 0.0f,// Bottom
-   0.5f, -0.5f, -0.5f,  0.0f, -1.0f,  0.0f, 1.0f, 0.0f,
-   0.5f, -0.5f,  0.5f,  0.0f, -1.0f,  0.0f, 1.0f, 1.0f,
-   0.5f, -0.5f,  0.5f,  0.0f, -1.0f,  0.0f, 1.0f, 1.0f,
-  -0.5f, -0.5f,  0.5f,  0.0f, -1.0f,  0.0f, 0.0f, 1.0f,
-  -0.5f, -0.5f, -0.5f,  0.0f, -1.0f,  0.0f, 0.0f, 0.0f,
+    -0.5f, -0.5f, -0.5f, 0.0f,  -1.0f, 0.0f,  0.0f,  0.0f, // Bottom
+    0.5f,  -0.5f, -0.5f, 0.0f,  -1.0f, 0.0f,  1.0f,  0.0f,  0.5f,  -0.5f,
+    0.5f,  0.0f,  -1.0f, 0.0f,  1.0f,  1.0f,  0.5f,  -0.5f, 0.5f,  0.0f,
+    -1.0f, 0.0f,  1.0f,  1.0f,  -0.5f, -0.5f, 0.5f,  0.0f,  -1.0f, 0.0f,
+    0.0f,  1.0f,  -0.5f, -0.5f, -0.5f, 0.0f,  -1.0f, 0.0f,  0.0f,  0.0f,
 
-  -0.5f,  0.5f, -0.5f,  0.0f,  1.0f,  0.0f, 0.0f, 1.0f, // Up
-   0.5f,  0.5f, -0.5f,  0.0f,  1.0f,  0.0f, 1.0f, 1.0f,
-   0.5f,  0.5f,  0.5f,  0.0f,  1.0f,  0.0f, 1.0f, 0.0f,
-   0.5f,  0.5f,  0.5f,  0.0f,  1.0f,  0.0f, 1.0f, 0.0f,
-  -0.5f,  0.5f,  0.5f,  0.0f,  1.0f,  0.0f, 0.0f, 0.0f,
-  -0.5f,  0.5f, -0.5f,  0.0f,  1.0f,  0.0f, 0.0f, 1.0f
-};
+    -0.5f, 0.5f,  -0.5f, 0.0f,  1.0f,  0.0f,  0.0f,  1.0f, // Up
+    0.5f,  0.5f,  -0.5f, 0.0f,  1.0f,  0.0f,  1.0f,  1.0f,  0.5f,  0.5f,
+    0.5f,  0.0f,  1.0f,  0.0f,  1.0f,  0.0f,  0.5f,  0.5f,  0.5f,  0.0f,
+    1.0f,  0.0f,  1.0f,  0.0f,  -0.5f, 0.5f,  0.5f,  0.0f,  1.0f,  0.0f,
+    0.0f,  0.0f,  -0.5f, 0.5f,  -0.5f, 0.0f,  1.0f,  0.0f,  0.0f,  1.0f};
 
 // Deltatime
 GLfloat deltaTime = 0.0f; // Time between current frame and last frame
@@ -165,7 +163,8 @@ int main() {
 
   // Initialize GLEW to setup the OpenGL Function pointers
   if (GLEW_OK != glewInit()) {
-    std::cout << "Failed to initialize GLEW" << std::endl; return EXIT_FAILURE;
+    std::cout << "Failed to initialize GLEW" << std::endl;
+    return EXIT_FAILURE;
   }
 
   // OpenGL options
@@ -177,12 +176,13 @@ int main() {
 
   // SHADERS
   Shader lightingShader("Shader/lighting.vs", "Shader/lighting.frag");
-  Shader skeletalAnimShader("Shader/modelLoading.vs", "Shader/modelLoading.frag");
+  Shader skeletalAnimShader("Shader/modelLoading.vs",
+                            "Shader/modelLoading.frag");
 
   // MODEL LOADING
   Model robot("Models/Robot.gltf");
-  // Animation robotAnimation("Models/Robot.glb", &robot);
-  // Animator animator(&robotAnimation);
+  Model ballomModel("Models/Ballom.obj");
+  Model onilModel("Models/Onil.obj");
 
   // First, set the container's VAO (and VBO)
   GLuint VBO, VAO;
@@ -192,13 +192,16 @@ int main() {
   glBindBuffer(GL_ARRAY_BUFFER, VBO);
   glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
   // Position attribute
-  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(GLfloat), (GLvoid *)0);
+  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(GLfloat),
+                        (GLvoid *)0);
   glEnableVertexAttribArray(0);
   // normal attribute
-  glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void *)(3 * sizeof(float)));
+  glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float),
+                        (void *)(3 * sizeof(float)));
   glEnableVertexAttribArray(1);
   // Texture Coordinate attribute
-  glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(GLfloat), (GLvoid *)(6 * sizeof(GLfloat)));
+  glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(GLfloat),
+                        (GLvoid *)(6 * sizeof(GLfloat)));
   glEnableVertexAttribArray(2);
   glBindVertexArray(0);
 
@@ -230,7 +233,8 @@ int main() {
   glGenTextures(1, &brick_texture);
   glBindTexture(GL_TEXTURE_2D, brick_texture);
   unsigned char darkGray[] = {64, 64, 64, 255};
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, darkGray);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE,
+               darkGray);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
@@ -239,7 +243,8 @@ int main() {
   glGenTextures(1, &enemy_red_texture);
   glBindTexture(GL_TEXTURE_2D, enemy_red_texture);
   unsigned char redColor[] = {255, 0, 0, 255};
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, redColor);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE,
+               redColor);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
@@ -248,7 +253,8 @@ int main() {
   glGenTextures(1, &enemy_blue_texture);
   glBindTexture(GL_TEXTURE_2D, enemy_blue_texture);
   unsigned char blueColor[] = {0, 0, 255, 255};
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, blueColor);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE,
+               blueColor);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
@@ -257,7 +263,8 @@ int main() {
   glGenTextures(1, &bomb_texture);
   glBindTexture(GL_TEXTURE_2D, bomb_texture);
   unsigned char black_color[] = {255, 255, 255, 255};
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, black_color);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE,
+               black_color);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
@@ -280,16 +287,16 @@ int main() {
 
   // Player
   // The initial position is in the secure zone map(0,0)
-  Player bomberman(glm::vec3(-half_cols + 1, -0.49f, -half_rows + 1), glm::vec2(0.0f, 1.0f));
+  Player bomberman(glm::vec3(-half_cols + 1, -0.49f, -half_rows + 1),
+                   glm::vec2(0.0f, 1.0f));
 
   // Initializing Bomb object with duratin 3s and -0.1 y_pos
   Bomb bomb(3.0f, -0.1f);
 
   // Set the projection type and parameters
-  glm::mat4 projection = glm::perspective(camera.GetZoom(), 
-                                          (GLfloat)SCREEN_WIDTH / (GLfloat)SCREEN_HEIGHT, 
-                                          0.1f,
-                                          100.0f);
+  glm::mat4 projection = glm::perspective(
+      camera.GetZoom(), (GLfloat)SCREEN_WIDTH / (GLfloat)SCREEN_HEIGHT, 0.1f,
+      100.0f);
 
   // Game loop
   while (!glfwWindowShouldClose(window)) {
@@ -303,7 +310,7 @@ int main() {
     glfwPollEvents();
     DoMovement(bomberman, map, bomb);
 
-    for (auto& enemy : enemies) {
+    for (auto &enemy : enemies) {
       enemy.Update(deltaTime, map, bomberman.getPosition());
     }
 
@@ -316,6 +323,10 @@ int main() {
 
     lightingShader.use();
 
+    if (currentCameraMode == MODE_FIRST_PERSON) {
+      camera.setPosition(bomberman.getPosition() + glm::vec3(0.0f, 0.8f, 0.0f));
+    }
+
     // CAMERA ------
     glm::mat4 view = camera.GetViewMatrix();
     lightingShader.setMat4("view", view);
@@ -327,48 +338,48 @@ int main() {
     // MAP ------
     DrawMap(map, lightingShader, mapAssets);
 
-    // ENEMIES ------
-    glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, 0); // No specular
-
-    lightingShader.setVec2("uvScale", 1.0f, 1.0f);
-
-    for (const auto& enemy : enemies) {
-        glActiveTexture(GL_TEXTURE0);
-        if (enemy.getType() == EnemyType::BALLOM) {
-            glBindTexture(GL_TEXTURE_2D, enemy_red_texture);
-        } else {
-            glBindTexture(GL_TEXTURE_2D, enemy_blue_texture);
-        }
-
-        glm::mat4 model(1.0f);
-        // Translate to enemy position and apply orientation (though a simple cube doesn't show orientation well, we'll add it)
-        model = glm::translate(model, enemy.getPosition()) * glm::toMat4(enemy.getOrientation());
-        model = glm::scale(model, glm::vec3(0.8f, 0.8f, 0.8f)); // A bit smaller than the walls
-        lightingShader.setMat4("model", model);
-        glDrawArrays(GL_TRIANGLES, 0, 36);
-    }
-
     // BOMBS ------
     DrawBomb(bomb, bomb_texture, map, currentFrame, lightingShader);
 
-    // ROBOT ------
+    // MODELS (ROBOT + ENEMIES) ------
     skeletalAnimShader.use();
-    
+
     // Send uniforms
     skeletalAnimShader.setMat4("view", view);
     skeletalAnimShader.setMat4("projection", projection);
 
-    // Send bones matrices
-    // auto transforms = animator.GetFinalBoneMatrices();
-    // for (size_t i = 0; i < transforms.size(); ++i)
-    //   skeletalAnimShader.setMat4("finalBonesMatrices[" + std::to_string(i) + "]", transforms[i]);
+    if (currentCameraMode != MODE_FIRST_PERSON) {
+      glm::mat4 model(1.0f);
+      model = glm::translate(model, bomberman.getPosition()) *
+              glm::toMat4(bomberman.getOrientation());
+      model = glm::scale(model, glm::vec3(0.3f, 0.3f, 0.3f));
+      skeletalAnimShader.setMat4("model", model);
+      robot.Draw(skeletalAnimShader);
+    }
 
-    glm::mat4 model(1.0f);
-    model = glm::translate(model, bomberman.getPosition()) * glm::toMat4(bomberman.getOrientation());
-    model = glm::scale(model, glm::vec3(0.3f, 0.3f, 0.3f));
-    skeletalAnimShader.setMat4("model", model);
-    robot.Draw(skeletalAnimShader);
+    for (const auto &enemy : enemies) {
+      glm::mat4 model(1.0f);
+      
+      // Elevamos a Ballom un poco más (0.5f) que a Onil (0.4f)
+      float yOffset = (enemy.getType() == EnemyType::BALLOM) ? 0.55f : 0.4f;
+      glm::vec3 drawPosition = enemy.getPosition() + glm::vec3(0.0f, yOffset, 0.0f);
+      
+      model = glm::translate(model, drawPosition) *
+              glm::toMat4(enemy.getOrientation());
+      
+      // Adjust scale as needed for the imported models
+      model = glm::scale(model, glm::vec3(0.4f, 0.4f, 0.4f)); 
+      
+      // Corregir la orientación predeterminada del modelo (rotar -90 grados en Y para que miren al frente)
+      model = glm::rotate(model, glm::radians(-90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+      
+      skeletalAnimShader.setMat4("model", model);
+      if (enemy.getType() == EnemyType::BALLOM) {
+        ballomModel.Draw(skeletalAnimShader);
+      } else {
+        onilModel.Draw(skeletalAnimShader);
+      }
+    }
 
     glBindVertexArray(0);
 
@@ -390,8 +401,10 @@ GLuint LoadTexture2D(const char *path) {
 
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST_MIPMAP_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
+                  GL_LINEAR_MIPMAP_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER,
+                  GL_NEAREST_MIPMAP_NEAREST);
 
   // Diffuse map
   unsigned char *image;
@@ -418,15 +431,15 @@ GLuint LoadTexture2D(const char *path) {
     return 0;
   }
 
-  glTexImage2D(GL_TEXTURE_2D, 0, format, textureWidth, textureHeight, 0, format, GL_UNSIGNED_BYTE, image);
+  glTexImage2D(GL_TEXTURE_2D, 0, format, textureWidth, textureHeight, 0, format,
+               GL_UNSIGNED_BYTE, image);
   glGenerateMipmap(GL_TEXTURE_2D);
 
   stbi_image_free(image);
   return texture;
 }
 
-
-void DrawMap(const Map& map, Shader& lightingShader, const MapAssets& assets) {
+void DrawMap(const Map &map, Shader &lightingShader, const MapAssets &assets) {
   // FLOOR ------
   DrawFloor(lightingShader, assets);
 
@@ -435,10 +448,9 @@ void DrawMap(const Map& map, Shader& lightingShader, const MapAssets& assets) {
 
   // MAP OBJECTS ------
   DrawMapBlocks(map, lightingShader, assets);
-
 }
 
-void DrawFloor(Shader& lightingShader, const MapAssets& assets) {
+void DrawFloor(Shader &lightingShader, const MapAssets &assets) {
   glm::mat4 model(1.0f);
 
   // Bind diffuse map
@@ -459,7 +471,7 @@ void DrawFloor(Shader& lightingShader, const MapAssets& assets) {
   glDrawArrays(GL_TRIANGLES, 30, 6);
 }
 
-void DrawWalls(Shader& lightingShader, GLuint wallTexture) {
+void DrawWalls(Shader &lightingShader, GLuint wallTexture) {
   glm::mat4 model(1.0f);
 
   // Bind diffuse map
@@ -484,24 +496,27 @@ void DrawWalls(Shader& lightingShader, GLuint wallTexture) {
   }
 
   // Draw side walls
-  for (float z = -half_rows+1.0f; z <= half_rows-1.0f; z += 1.0f) {
+  for (float z = -half_rows + 1.0f; z <= half_rows - 1.0f; z += 1.0f) {
     // Reset model transformations
     model = glm::mat4(1.0f);
     model = glm::translate(model, glm::vec3(half_cols, 0.0f, z));
-    model = glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    model =
+        glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
     lightingShader.setMat4("model", model);
     glDrawArrays(GL_TRIANGLES, 0, 36);
 
     // Reset model transformations
     model = glm::mat4(1.0f);
     model = glm::translate(model, glm::vec3(-half_cols, 0.0f, z));
-    model = glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    model =
+        glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
     lightingShader.setMat4("model", model);
     glDrawArrays(GL_TRIANGLES, 0, 36);
   }
 }
 
-void DrawMapBlocks(const Map& map, Shader& lightingShader, const MapAssets& assets) {
+void DrawMapBlocks(const Map &map, Shader &lightingShader,
+                   const MapAssets &assets) {
   glm::mat4 model(1.0f);
 
   for (int row = 0; row < ROWS; row++) {
@@ -531,66 +546,91 @@ void DrawMapBlocks(const Map& map, Shader& lightingShader, const MapAssets& asse
   }
 }
 
-void DrawBomb(Bomb& bomb, GLuint bomb_texture, Map& map, GLfloat currentTime, Shader& lightingShader) {
-    if (bomb.getBombState() == true) // If the bomb is activated
-    {
-      if (currentTime >= bomb.getBombExpiration()) // If the bomb explodes
-        bomb.expireBomb(bomb.getBombPosition(), map);
+void DrawBomb(Bomb &bomb, GLuint bomb_texture, Map &map, GLfloat currentTime,
+              Shader &lightingShader) {
+  if (bomb.getBombState() == true) // If the bomb is activated
+  {
+    if (currentTime >= bomb.getBombExpiration()) // If the bomb explodes
+      bomb.expireBomb(bomb.getBombPosition(), map);
 
-      // Texture
-      glActiveTexture(GL_TEXTURE0);
-      glBindTexture(GL_TEXTURE_2D, bomb_texture);
-      glActiveTexture(GL_TEXTURE1);
-      glBindTexture(GL_TEXTURE_2D, 0); // No specular
+    // Texture
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, bomb_texture);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, 0); // No specular
 
-      lightingShader.setVec2("uvScale", 1.0f, 1.0f);
+    lightingShader.setVec2("uvScale", 1.0f, 1.0f);
 
-      glm::mat4 model(1.0f);
-      model = glm::translate(model, bomb.getBombPosition());
-      model = glm::scale(model, glm::vec3(0.9f, 0.9f, 0.9f));
-      lightingShader.setMat4("model", model);
-      glDrawArrays(GL_TRIANGLES, 0, 36);
-    }
+    glm::mat4 model(1.0f);
+    model = glm::translate(model, bomb.getBombPosition());
+    model = glm::scale(model, glm::vec3(0.9f, 0.9f, 0.9f));
+    lightingShader.setMat4("model", model);
+    glDrawArrays(GL_TRIANGLES, 0, 36);
+  }
 }
 
 // Moves/alters the camera positions based on user input
-void DoMovement(Player& bomberman, Map& map, Bomb& bomb) {
+void DoMovement(Player &bomberman, Map &map, Bomb &bomb) {
   // Camera controls
-  if (keys[GLFW_KEY_UP]) {
-    camera.ProcessKeyboard(FORWARD, deltaTime);
-  }
+  if (currentCameraMode == MODE_FREE) {
+    if (keys[GLFW_KEY_UP]) {
+      camera.ProcessKeyboard(FORWARD, deltaTime);
+    }
 
-  if (keys[GLFW_KEY_DOWN]) {
-    camera.ProcessKeyboard(BACKWARD, deltaTime);
-  }
+    if (keys[GLFW_KEY_DOWN]) {
+      camera.ProcessKeyboard(BACKWARD, deltaTime);
+    }
 
-  if (keys[GLFW_KEY_LEFT]) {
-    camera.ProcessKeyboard(LEFT, deltaTime);
-  }
+    if (keys[GLFW_KEY_LEFT]) {
+      camera.ProcessKeyboard(LEFT, deltaTime);
+    }
 
-  if (keys[GLFW_KEY_RIGHT]) {
-    camera.ProcessKeyboard(RIGHT, deltaTime);
+    if (keys[GLFW_KEY_RIGHT]) {
+      camera.ProcessKeyboard(RIGHT, deltaTime);
+    }
   }
 
   // Player controls
-  if (keys[GLFW_KEY_W]) {
-    bomberman.ProcessKeyboard(NORTH, deltaTime, map);
-  }
+  if (currentCameraMode == MODE_FREE) {
+    if (keys[GLFW_KEY_W]) {
+      bomberman.ProcessKeyboard(NORTH, deltaTime, map);
+    }
 
-  if (keys[GLFW_KEY_S]) {
-    bomberman.ProcessKeyboard(SOUTH, deltaTime, map);
-  }
+    if (keys[GLFW_KEY_S]) {
+      bomberman.ProcessKeyboard(SOUTH, deltaTime, map);
+    }
 
-  if (keys[GLFW_KEY_A]) {
-    bomberman.ProcessKeyboard(WEST, deltaTime, map);
-  }
+    if (keys[GLFW_KEY_A]) {
+      bomberman.ProcessKeyboard(WEST, deltaTime, map);
+    }
 
-  if (keys[GLFW_KEY_D]) {
-    bomberman.ProcessKeyboard(EAST, deltaTime, map);
+    if (keys[GLFW_KEY_D]) {
+      bomberman.ProcessKeyboard(EAST, deltaTime, map);
+    }
+  } else if (currentCameraMode == MODE_FIRST_PERSON) {
+    if (keys[GLFW_KEY_W]) {
+      bomberman.ProcessKeyboardFPS(NORTH, camera.GetFront(), camera.GetRight(),
+                                   deltaTime, map);
+    }
+
+    if (keys[GLFW_KEY_S]) {
+      bomberman.ProcessKeyboardFPS(SOUTH, camera.GetFront(), camera.GetRight(),
+                                   deltaTime, map);
+    }
+
+    if (keys[GLFW_KEY_A]) {
+      bomberman.ProcessKeyboardFPS(WEST, camera.GetFront(), camera.GetRight(),
+                                   deltaTime, map);
+    }
+
+    if (keys[GLFW_KEY_D]) {
+      bomberman.ProcessKeyboardFPS(EAST, camera.GetFront(), camera.GetRight(),
+                                   deltaTime, map);
+    }
   }
 
   // Place bomb
-  if (keys[GLFW_KEY_SPACE] && bomb.getBombState() == false) { 
+  if (keys[GLFW_KEY_SPACE] && bomb.getBombState() == false) {
     bomb.activateBomb(bomberman.getPosition(), glfwGetTime(), map);
     bomberman.setCanPassBomb(true);
   }
@@ -601,6 +641,11 @@ void KeyCallback(GLFWwindow *window, int key, int scancode, int action,
                  int mode) {
   if (GLFW_KEY_ESCAPE == key && GLFW_PRESS == action) {
     glfwSetWindowShouldClose(window, GL_TRUE);
+  }
+
+  if (key == GLFW_KEY_C && action == GLFW_PRESS) {
+    currentCameraMode =
+        (currentCameraMode == MODE_FREE) ? MODE_FIRST_PERSON : MODE_FREE;
   }
 
   if (key >= 0 && key < 1024) {
