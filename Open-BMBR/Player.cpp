@@ -2,7 +2,6 @@
 #include "Map.hpp"
 #include <cmath>
 #include <glm/geometric.hpp>
-#include <iostream>
 
 const GLfloat SPEED = 4.0f;
 
@@ -68,6 +67,62 @@ void Player::ProcessKeyboard(Player_Movement direction, GLfloat deltaTime, const
       glm::quat step = glm::slerp(glm::quat(1,0,0,0), targetRot, t);
 
       // Apply incremental rotation
+      orientation = glm::normalize(step * orientation);
+    }
+  }
+
+  // Position increment
+  // X Axis
+  glm::vec3 newPosX = position;
+  newPosX.x += move.x * velocity;
+
+  if (!CheckCollision(newPosX, map))
+    position.x = newPosX.x;
+
+  // Z Axis
+  glm::vec3 newPosZ = position;
+  newPosZ.z += move.z * velocity;
+
+  if (!CheckCollision(newPosZ, map))
+    position.z = newPosZ.z;
+}
+
+void Player::ProcessKeyboardFPS(Player_Movement direction, glm::vec3 cameraFront, glm::vec3 cameraRight, GLfloat deltaTime, const Map& map)
+{
+  GLfloat velocity = this->speed * deltaTime;
+  glm::vec3 move(0.0f);
+
+  // Anular Y y normalizar
+  glm::vec3 front = glm::normalize(glm::vec3(cameraFront.x, 0.0f, cameraFront.z));
+  glm::vec3 right = glm::normalize(glm::vec3(cameraRight.x, 0.0f, cameraRight.z));
+
+  if (direction == NORTH)
+    move += front;
+
+  if (direction == SOUTH)
+    move -= front;
+
+  if (direction == EAST)
+    move += right;
+
+  if (direction == WEST)
+    move -= right;
+
+  if (glm::length(move) > 0.0f)
+  {
+    move = glm::normalize(move);
+    
+    // Progressive rotation
+    glm::vec3 targetDir = move;
+    glm::vec3 currentDir = orientation * glm::vec3(0,0,1);
+    glm::quat targetRot = glm::rotation(currentDir, targetDir);
+    float maxAngle = glm::radians(720.0f) * deltaTime;
+    float angle = glm::angle(targetRot);
+
+    if (angle > 0.001f)
+    {
+      float t = glm::min(1.0f, maxAngle / angle);
+      glm::quat step = glm::slerp(glm::quat(1,0,0,0), targetRot, t);
       orientation = glm::normalize(step * orientation);
     }
   }

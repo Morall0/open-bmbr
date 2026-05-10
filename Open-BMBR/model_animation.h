@@ -147,9 +147,13 @@ private:
 		std::vector<Texture> heightMaps = loadMaterialTextures(material, aiTextureType_AMBIENT, "texture_height");
 		textures.insert(textures.end(), heightMaps.begin(), heightMaps.end());
 
+		aiColor3D color(1.f, 1.f, 1.f);
+		material->Get(AI_MATKEY_COLOR_DIFFUSE, color);
+		glm::vec3 diffuseColor(color.r, color.g, color.b);
+
 		ExtractBoneWeightForVertices(vertices,mesh,scene);
 
-		return Mesh(vertices, indices, textures);
+		return Mesh(vertices, indices, textures, diffuseColor);
 	}
 
 	void SetVertexBoneData(Vertex& vertex, int boneID, float weight)

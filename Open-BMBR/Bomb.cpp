@@ -4,7 +4,7 @@
 
 // Constructor
 Bomb::Bomb(GLfloat bomb_duration, GLfloat y_bomb_position)
-    : bomb_duration(bomb_duration), bomb_state(false)
+    : bomb_duration(bomb_duration), bomb_state(false), fire_active(false)
 {
   bomb_position.y = y_bomb_position;
 }
