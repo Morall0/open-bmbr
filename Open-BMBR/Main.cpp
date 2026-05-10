@@ -37,30 +37,43 @@
 #include "Enemy.hpp"
 #include "Shader.h"
 
+// Structure for material
+struct Material {
+  GLuint diffuse;
+  GLuint specular;
+
+  float shininess = 16.0f;
+
+  float uvScaleX = 1.0f;
+  float uvScaleY = 1.0f;
+};
+
 // Structure for Map Drawing functions
-struct MapAssets {
-    GLuint groundTexture;
-    GLuint groundSpecular;
-    GLuint wallTexture;
-    GLuint brickTexture;
+struct MapMaterials {
+    Material ground_mat;
+    Material wall_mat;
+    Material brick_mat;
 };
 
 // Function prototypes
-GLuint LoadTexture2D(const char *path);
-void KeyCallback(GLFWwindow *window, int key, int scancode, int action,
-                 int mode);
+void KeyCallback(GLFWwindow *window, int key, int scancode, int action, int mode);
 void MouseCallback(GLFWwindow *window, double xPos, double yPos);
 void DoMovement(Player& bomberman, Map& map, Bomb& bomb);
 
+// Texture functions
+GLuint LoadTexture2D(const char *path);
+GLuint CreateSolidTexture(unsigned char r, unsigned char g, unsigned char b, unsigned char a);
+void ApplyTexture(const Material& material, Shader& lightingShader);
+
 // Map Draw Functions
-void DrawMap(const Map& map, Shader& lightingShader, const MapAssets& assets);
-void DrawFloor(Shader& lightingShader, const MapAssets& assets);
-void DrawWalls(Shader& lightingShader, GLuint wallTexture);
-void DrawMapBlocks(const Map& map, Shader& lightingShader, const MapAssets& assets);
+void DrawMap(const Map& map, Shader& lightingShader, const MapMaterials& map_materials);
+void DrawFloor(Shader& lightingShader, const Material& ground_mat);
+void DrawWalls(Shader& lightingShader, const Material& wall_mat);
+void DrawMapBlocks(const Map& map, Shader& lightingShader, const MapMaterials& map_materials);
 
 // Bomb Draw Function
-void DrawBomb(Bomb& bomb, GLuint bomb_texture, Map& map, GLfloat currentTime, Shader& lightingShader);
-void DrawFire(Bomb& bomb, GLuint fire_texture, Map& map, glm::vec3 player_position, GLfloat currentTime, Shader& lightingShader);
+void DrawBomb(Bomb& bomb, Map& map, GLfloat currentTime, Shader& lightingShader);
+void DrawFire(Bomb& bomb, Map& map, glm::vec3 player_position, GLfloat currentTime, Shader& lightingShader);
 void DrawSideFlames(glm::vec3 bombPosition, Map& map, Shader& lightingShader);
 
 // Window dimensions
@@ -204,11 +217,27 @@ int main() {
   glEnableVertexAttribArray(2);
   glBindVertexArray(0);
 
-  // Load textures
+  // Materials and textures
   stbi_set_flip_vertically_on_load(true);
+  // Texture loading
   GLuint ground_texture = LoadTexture2D("images/aerial_rocks_02_diff_1k.png");
   GLuint ground_specular = LoadTexture2D("images/aerial_rocks_02_rough_1k.png");
   GLuint wall_texture = LoadTexture2D("images/native_wall_1.png");
+  // Texture creation
+  GLuint brick_texture = CreateSolidTexture(64, 64, 64, 255); // Dark gray for destructible bricks
+  GLuint ballom_texture = CreateSolidTexture(255, 0, 0, 255); // Red texture for Ballom enemies
+  GLuint onil_texture = CreateSolidTexture(0, 0, 255, 255); // Blue texture for Onil enemies
+  GLuint bomb_texture = CreateSolidTexture(255, 255, 255, 255); // Black texture for bombs
+  GLuint fire_texture = CreateSolidTexture(255, 255, 0, 255); // Yellow texture for fire
+
+  // Material
+  Material ground_mat = {ground_texture, ground_specular, 16.0f, 10.33f, 4.33f};
+  Material wall_mat = {wall_texture, 0, 16.0f};
+  Material brick_mat = {brick_texture, 0, 16.0f};
+  Material ballom_mat = {ballom_texture, 0, 16.0f};
+  Material onil_mat = {onil_texture, 0, 16.0f};
+  Material bomb_mat = {bomb_texture, 0, 16.0f};
+  Material fire_mat = {fire_texture, 0, 16.0f};
 
   // Configuring lightingShader
   lightingShader.use();
@@ -216,7 +245,6 @@ int main() {
   // Material properties
   lightingShader.setInt("material.diffuse", 0);
   lightingShader.setInt("material.specular", 1);
-  lightingShader.setFloat("material.shininess", 16.0f);
 
   // Dir light properties
   lightingShader.setVec3("dirLight.direction", -0.2f, -1.0f, -0.3f);
@@ -227,53 +255,8 @@ int main() {
   // Initialize random seed
   srand(static_cast<unsigned int>(time(NULL)));
 
-  // Generate a dark gray texture for destructible bricks
-  GLuint brick_texture;
-  glGenTextures(1, &brick_texture);
-  glBindTexture(GL_TEXTURE_2D, brick_texture);
-  unsigned char darkGray[] = {64, 64, 64, 255};
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, darkGray);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
-  // Generate a red texture for enemies
-  GLuint enemy_red_texture;
-  glGenTextures(1, &enemy_red_texture);
-  glBindTexture(GL_TEXTURE_2D, enemy_red_texture);
-  unsigned char redColor[] = {255, 0, 0, 255};
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, redColor);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
-  // Generate a blue texture for Onil enemies
-  GLuint enemy_blue_texture;
-  glGenTextures(1, &enemy_blue_texture);
-  glBindTexture(GL_TEXTURE_2D, enemy_blue_texture);
-  unsigned char blueColor[] = {0, 0, 255, 255};
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, blueColor);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
-  // Generate a black texture for bombs
-  GLuint bomb_texture;
-  glGenTextures(1, &bomb_texture);
-  glBindTexture(GL_TEXTURE_2D, bomb_texture);
-  unsigned char black_color[] = {255, 255, 255, 255};
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, black_color);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
-  // Generate a yellow texture for fire
-  GLuint fire_texture;
-  glGenTextures(1, &fire_texture);
-  glBindTexture(GL_TEXTURE_2D, fire_texture);
-  unsigned char yellow_color[] = {255, 255, 0, 255};
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, yellow_color);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
   // Map
-  // Create map logic
+  // Create map logic grid
   Map map(ROWS, COLS);
   map.genMap();
   map.genHidden();
@@ -283,11 +266,10 @@ int main() {
   std::vector<Enemy> enemies = Enemy::SpawnEnemies(map, 6, 8);
 
   // Set map assets for drawing
-  MapAssets mapAssets;
-  mapAssets.groundTexture = ground_texture;
-  mapAssets.groundSpecular = ground_specular;
-  mapAssets.wallTexture = wall_texture;
-  mapAssets.brickTexture = brick_texture;
+  MapMaterials map_materials;
+  map_materials.ground_mat = ground_mat;
+  map_materials.wall_mat = wall_mat;
+  map_materials.brick_mat = brick_mat;
 
   // Player
   // The initial position is in the secure zone map(0,0)
@@ -335,21 +317,15 @@ int main() {
     glBindVertexArray(VAO);
 
     // MAP ------
-    DrawMap(map, lightingShader, mapAssets);
+    DrawMap(map, lightingShader, map_materials);
 
     // ENEMIES ------
-    glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, 0); // No specular
-
-    lightingShader.setVec2("uvScale", 1.0f, 1.0f);
-
     for (const auto& enemy : enemies) {
         glActiveTexture(GL_TEXTURE0);
-        if (enemy.getType() == EnemyType::BALLOM) {
-            glBindTexture(GL_TEXTURE_2D, enemy_red_texture);
-        } else {
-            glBindTexture(GL_TEXTURE_2D, enemy_blue_texture);
-        }
+        if (enemy.getType() == EnemyType::BALLOM)
+            ApplyTexture(ballom_mat, lightingShader);
+        else
+            ApplyTexture(onil_mat, lightingShader);
 
         glm::mat4 model(1.0f);
         // Translate to enemy position and apply orientation (though a simple cube doesn't show orientation well, we'll add it)
@@ -360,8 +336,10 @@ int main() {
     }
 
     // BOMBS ------
-    DrawBomb(bomb, bomb_texture, map, currentFrame, lightingShader);
-    DrawFire(bomb, fire_texture, map, bomberman.getPosition(), currentFrame, lightingShader);
+    ApplyTexture(bomb_mat, lightingShader);
+    DrawBomb(bomb, map, currentFrame, lightingShader);
+    ApplyTexture(fire_mat, lightingShader);
+    DrawFire(bomb, map, bomberman.getPosition(), currentFrame, lightingShader);
 
     // ROBOT ------
     skeletalAnimShader.use();
@@ -436,30 +414,50 @@ GLuint LoadTexture2D(const char *path) {
   return texture;
 }
 
+GLuint CreateSolidTexture(unsigned char r, unsigned char g, unsigned char b, unsigned char a) {
+    GLuint texture;
+    unsigned char color[] = { r, g, b, a };
 
-void DrawMap(const Map& map, Shader& lightingShader, const MapAssets& assets) {
-  // FLOOR ------
-  DrawFloor(lightingShader, assets);
+    glGenTextures(1, &texture);
+    glBindTexture(GL_TEXTURE_2D, texture);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, color);
+    glBindTexture(GL_TEXTURE_2D, 0);
 
-  // WALLS ------
-  DrawWalls(lightingShader, assets.wallTexture);
-
-  // MAP OBJECTS ------
-  DrawMapBlocks(map, lightingShader, assets);
-  // map.printMap();
+    return texture;
 }
 
-void DrawFloor(Shader& lightingShader, const MapAssets& assets) {
+void ApplyTexture(const Material& material, Shader& lightingShader) {
+      // Bind diffuse map
+      glActiveTexture(GL_TEXTURE0);
+      glBindTexture(GL_TEXTURE_2D, material.diffuse);
+
+      // Bind specular map
+      glActiveTexture(GL_TEXTURE1);
+      glBindTexture(GL_TEXTURE_2D, material.specular);
+
+      lightingShader.setFloat("material.shininess", material.shininess);
+      lightingShader.setVec2("uvScale", material.uvScaleX, material.uvScaleY);
+  }
+
+void DrawMap(const Map& map, Shader& lightingShader, const MapMaterials& map_materials) {
+  // FLOOR ------
+  DrawFloor(lightingShader, map_materials.ground_mat);
+
+  // WALLS ------
+  DrawWalls(lightingShader, map_materials.wall_mat);
+
+  // MAP OBJECTS ------
+  DrawMapBlocks(map, lightingShader, map_materials);
+}
+
+void DrawFloor(Shader& lightingShader, const Material& ground_mat) {
   glm::mat4 model(1.0f);
 
-  // Bind diffuse map
-  glActiveTexture(GL_TEXTURE0);
-  glBindTexture(GL_TEXTURE_2D, assets.groundTexture);
-  // Bind specular map
-  glActiveTexture(GL_TEXTURE1);
-  glBindTexture(GL_TEXTURE_2D, assets.groundSpecular);
-
-  lightingShader.setVec2("uvScale", 10.33f, 4.33f); // texture scale
+  ApplyTexture(ground_mat, lightingShader);
 
   // Model transformations
   model = glm::scale(model, glm::vec3(COLS, 1.0f, ROWS));
@@ -470,17 +468,10 @@ void DrawFloor(Shader& lightingShader, const MapAssets& assets) {
   glDrawArrays(GL_TRIANGLES, 30, 6);
 }
 
-void DrawWalls(Shader& lightingShader, GLuint wallTexture) {
+void DrawWalls(Shader& lightingShader, const Material& wall_mat) {
   glm::mat4 model(1.0f);
 
-  // Bind diffuse map
-  glActiveTexture(GL_TEXTURE0);
-  glBindTexture(GL_TEXTURE_2D, wallTexture);
-  // Unbind specular map for walls so they don't use the floor's specular
-  glActiveTexture(GL_TEXTURE1);
-  glBindTexture(GL_TEXTURE_2D, 0);
-
-  lightingShader.setVec2("uvScale", 1.0f, 1.0f); // texture scale
+  ApplyTexture(wall_mat, lightingShader);
 
   for (float x = -half_cols; x <= half_cols; x += 1.0f) {
     model = glm::mat4(1.0f); // Reset model matrix
@@ -512,7 +503,7 @@ void DrawWalls(Shader& lightingShader, GLuint wallTexture) {
   }
 }
 
-void DrawMapBlocks(const Map& map, Shader& lightingShader, const MapAssets& assets) {
+void DrawMapBlocks(const Map& map, Shader& lightingShader, const MapMaterials& map_materials) {
   glm::mat4 model(1.0f);
 
   for (int row = 0; row < ROWS; row++) {
@@ -526,12 +517,10 @@ void DrawMapBlocks(const Map& map, Shader& lightingShader, const MapAssets& asse
 
       if (cell == 1) {
         // Indestructible pillar
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, assets.wallTexture);
+        ApplyTexture(map_materials.wall_mat, lightingShader);
       } else if (cell >= 2 && cell <= 4) {
         // Destructible brick (including hidden exit and power-ups)
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, assets.brickTexture);
+        ApplyTexture(map_materials.brick_mat, lightingShader);
       }
 
       model = glm::mat4(1.0f);
@@ -542,21 +531,13 @@ void DrawMapBlocks(const Map& map, Shader& lightingShader, const MapAssets& asse
   }
 }
 
-void DrawBomb(Bomb& bomb, GLuint bomb_texture, Map& map, GLfloat currentTime, Shader& lightingShader) {
+void DrawBomb(Bomb& bomb, Map& map, GLfloat currentTime, Shader& lightingShader) {
     if (bomb.getBombState() == true) // If the bomb is activated
     {
       glm::vec3 bomb_position = bomb.getBombPosition();
       if (currentTime >= bomb.getBombExpiration()) { // If the bomb explodes
         bomb.expireBomb(bomb_position, map, currentTime);
       }
-
-      // Texture
-      glActiveTexture(GL_TEXTURE0);
-      glBindTexture(GL_TEXTURE_2D, bomb_texture);
-      glActiveTexture(GL_TEXTURE1);
-      glBindTexture(GL_TEXTURE_2D, 0); // No specular
-
-      lightingShader.setVec2("uvScale", 1.0f, 1.0f);
 
       glm::mat4 model(1.0f);
       model = glm::translate(model, bomb_position);
@@ -566,7 +547,7 @@ void DrawBomb(Bomb& bomb, GLuint bomb_texture, Map& map, GLfloat currentTime, Sh
     }
 }
 
-void DrawFire(Bomb& bomb, GLuint fire_texture, Map& map, glm::vec3 player_position, GLfloat currentTime, Shader& lightingShader) {
+void DrawFire(Bomb& bomb, Map& map, glm::vec3 player_position, GLfloat currentTime, Shader& lightingShader) {
 
     if (bomb.isFireActive() == true) // If the bomb already exploded
     {
@@ -578,14 +559,6 @@ void DrawFire(Bomb& bomb, GLuint fire_texture, Map& map, glm::vec3 player_positi
       if (currentTime >= bomb.getFireExpiration()) { // If the bomb explodes
         bomb.putOutFire(grid_position, map);
       }
-
-      // Texture
-      glActiveTexture(GL_TEXTURE0);
-      glBindTexture(GL_TEXTURE_2D, fire_texture);
-      glActiveTexture(GL_TEXTURE1);
-      glBindTexture(GL_TEXTURE_2D, 0); // No specular
-
-      lightingShader.setVec2("uvScale", 1.0f, 1.0f);
 
       // Drawing the center
       glm::mat4 model(1.0f);
