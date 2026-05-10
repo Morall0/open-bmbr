@@ -25,8 +25,20 @@ public:
 	Animation(const std::string& animationPath, Model* model)
 	{
 		Assimp::Importer importer;
-		const aiScene* scene = importer.ReadFile(animationPath, aiProcess_Triangulate);
-		assert(scene && scene->mRootNode);
+		//const aiScene* scene = importer.ReadFile(animationPath, aiProcess_Triangulate);
+		const aiScene* scene = importer.ReadFile(animationPath,
+			aiProcess_Triangulate |
+			aiProcess_FlipUVs);
+		//assert(scene && scene->mRootNode);
+		if (!scene || !scene->mRootNode) {
+			std::cout << "ERROR: No se pudo cargar la escena: " << importer.GetErrorString() << std::endl;
+			return;
+		}
+
+		if (scene->mNumAnimations == 0) {
+			std::cout << "ERROR: El archivo no tiene animaciones" << std::endl;
+			return;
+		}
 		auto animation = scene->mAnimations[0];
 		m_Duration = animation->mDuration;
 		m_TicksPerSecond = animation->mTicksPerSecond;

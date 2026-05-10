@@ -10,6 +10,14 @@ void main()
     
   vec4   texColor= texture(texture_diffuse1, TexCoords);
     if(texColor.a < 0.1)
-        discard;
+       discard;
     FragColor = texColor;
+    // Quita el discard para ver todas las partes
+    //FragColor = texColor.a < 0.1 ? vec4(1.0, 0.5, 0.0, 1.0) : texColor;
+     //FragColor = vec4(texColor.rgb, 1.0);
 }
+
+
+
+
+

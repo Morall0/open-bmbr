@@ -19,8 +19,15 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="animation.h" />
+    <ClInclude Include="animator.h" />
+    <ClInclude Include="animdata.h" />
+    <ClInclude Include="bone.h" />
     <ClInclude Include="Camera.h" />
+    <ClInclude Include="Mesh.h" />
     <ClInclude Include="Model.h" />
+    <ClInclude Include="model_animation.h" />
+    <ClInclude Include="Robot.h" />
     <ClInclude Include="Shader.h" />
   </ItemGroup>
   <ItemGroup>
@@ -28,9 +35,18 @@
     <None Include="Shader\lamp.vs" />
     <None Include="Shader\lighting.frag" />
     <None Include="Shader\lighting.vs" />
+    <None Include="Shader\modelLoading.frag" />
+    <None Include="Shader\modelLoading.vs" />
+    <None Include="Shader\skeletal.frag" />
+    <None Include="Shader\skeletal.vs" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Bomb.cpp" />
+    <ClCompile Include="Enemy.cpp" />
     <ClCompile Include="Main.cpp" />
+    <ClCompile Include="Map.cpp" />
+    <ClCompile Include="Player.cpp" />
+    <ClCompile Include="Robot.cpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
@@ -92,6 +108,7 @@
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <AdditionalIncludeDirectories>$(SolutionDir)/External Libraries/glm;$(SolutionDir)/External Libraries/assimp/include;$(SolutionDir)/External Libraries/GLEW/include;$(SolutionDir)/External Libraries/GLFW/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -109,6 +126,7 @@
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <AdditionalIncludeDirectories>$(SolutionDir)/External Libraries/glm;$(SolutionDir)/External Libraries/assimp/include;$(SolutionDir)/External Libraries/GLEW/include;$(SolutionDir)/External Libraries/GLFW/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>

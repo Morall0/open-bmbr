@@ -35,6 +35,7 @@
 #include "model_animation.h"
 #include "Player.hpp"
 #include "Enemy.hpp"
+#include "Robot.h"
 #include "Shader.h"
 
 // Structure for Map Drawing functions
@@ -180,10 +181,10 @@ int main() {
   Shader skeletalAnimShader("Shader/modelLoading.vs", "Shader/modelLoading.frag");
 
   // MODEL LOADING
-  Model robot("Models/Robot.gltf");
-  // Animation robotAnimation("Models/Robot.glb", &robot);
-  // Animator animator(&robotAnimation);
-
+  Model robot("Models/Robot.fbx");
+  Animation robotAnimation("Models/Robot.fbx", &robot);
+  Animator animator(&robotAnimation);
+  
   // First, set the container's VAO (and VBO)
   GLuint VBO, VAO;
   glGenVertexArrays(1, &VAO);
@@ -291,6 +292,12 @@ int main() {
                                           0.1f,
                                           100.0f);
 
+  for (auto& [name, info] : robot.GetBoneInfoMap())
+      std::cout << "[" << info.id << "] " << name << std::endl;
+
+  ProceduralAnimator proceduralAnimator; 
+
+
   // Game loop
   while (!glfwWindowShouldClose(window)) {
     // Calculate deltatime of current frame
@@ -308,7 +315,8 @@ int main() {
     }
 
     // Update Animation
-    // animator.UpdateAnimation(deltaTime);
+   animator.UpdateAnimation(deltaTime);
+
 
     // Clear the colorbuffer
     glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
@@ -352,25 +360,44 @@ int main() {
     // BOMBS ------
     DrawBomb(bomb, bomb_texture, map, currentFrame, lightingShader);
 
+    glBindVertexArray(0); 
     // ROBOT ------
     skeletalAnimShader.use();
     
-    // Send uniforms
+     //Send uniforms
     skeletalAnimShader.setMat4("view", view);
     skeletalAnimShader.setMat4("projection", projection);
 
-    // Send bones matrices
-    // auto transforms = animator.GetFinalBoneMatrices();
-    // for (size_t i = 0; i < transforms.size(); ++i)
-    //   skeletalAnimShader.setMat4("finalBonesMatrices[" + std::to_string(i) + "]", transforms[i]);
+     //Send bones matrices
+    //auto transforms = proceduralAnimator.ComputeIdle(robot, currentFrame);
+    //for (size_t i = 0; i < transforms.size(); ++i)
+      //  skeletalAnimShader.setMat4("finalBonesMatrices[" + std::to_string(i) + "]", transforms[i]);
+
+    // Envía matrices identidad para todos los huesos
+    //std::vector<glm::mat4> identities(100, glm::mat4(1.0f));
+    //for (size_t i = 0; i < identities.size(); ++i)
+      //  skeletalAnimShader.setMat4("finalBonesMatrices[" + std::to_string(i) + "]", identities[i]);
+
+    auto transforms = animator.GetFinalBoneMatrices();
+    glm::quat torsRotation = glm::angleAxis(glm::radians(-90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+    transforms[0] = glm::toMat4(torsRotation);
+    for (size_t i = 0; i < transforms.size(); ++i)
+        skeletalAnimShader.setMat4("finalBonesMatrices[" + std::to_string(i) + "]", transforms[i]);
+
+    float tiempo = glfwGetTime();
+    float balanceo = sin(tiempo * 2.0f) * 5.0f;
 
     glm::mat4 model(1.0f);
-    model = glm::translate(model, bomberman.getPosition()) * glm::toMat4(bomberman.getOrientation());
-    model = glm::scale(model, glm::vec3(0.3f, 0.3f, 0.3f));
+    //model = glm::translate(model, bomberman.getPosition()) * glm::toMat4(bomberman.getOrientation());
+    //glm::vec3 robotPos = bomberman.getPosition() + glm::vec3(0.0f, 0.49f, 0.0f);
+    model = glm::translate(model, bomberman.getPosition() + glm::vec3(0.3f, 0.0f, 0.0f));
+    model = model * glm::toMat4(bomberman.getOrientation());
+    model = glm::rotate(model, glm::radians(-90.0f), glm::vec3(0.0f, 1.0f, 0.0f)); 
+    model = glm::rotate(model, glm::radians(balanceo), glm::vec3(0, 1, 0));
+    model = glm::scale(model, glm::vec3(0.2f, 0.2f, 0.2f));
     skeletalAnimShader.setMat4("model", model);
     robot.Draw(skeletalAnimShader);
-
-    glBindVertexArray(0);
+    
 
     // Swap the screen buffers
     glfwSwapBuffers(window);
