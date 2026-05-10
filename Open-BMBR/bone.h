@@ -33,9 +33,9 @@ class Bone
 public:
 	Bone(const std::string& name, int ID, const aiNodeAnim* channel)
 		:
+    m_LocalTransform(1.0f),
 		m_Name(name),
-		m_ID(ID),
-		m_LocalTransform(1.0f)
+		m_ID(ID)
 	{
 		m_NumPositions = channel->mNumPositionKeys;
 
