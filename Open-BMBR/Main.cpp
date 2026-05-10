@@ -26,41 +26,56 @@
 // #include "SOIL2/SOIL2.h"
 
 // Other includes
-#include "animation.h"
-#include "animator.h"
 #include "Bomb.hpp"
 #include "Camera.h"
 #include "Map.hpp"
+#include "animation.h"
+#include "animator.h"
 // #include "Model.h"
+#include "Enemy.hpp"
+#include "Shader.h"
 #include "model_animation.h"
 #include "Player.hpp"
-#include "Enemy.hpp"
 #include "Robot.h"
-#include "Shader.h"
+
+// Structure for material
+struct Material {
+  GLuint diffuse;
+  GLuint specular;
+
+  float shininess = 16.0f;
+
+  float uvScaleX = 1.0f;
+  float uvScaleY = 1.0f;
+};
 
 // Structure for Map Drawing functions
-struct MapAssets {
-    GLuint groundTexture;
-    GLuint groundSpecular;
-    GLuint wallTexture;
-    GLuint brickTexture;
+struct MapMaterials {
+    Material ground_mat;
+    Material wall_mat;
+    Material brick_mat;
 };
 
 // Function prototypes
-GLuint LoadTexture2D(const char *path);
-void KeyCallback(GLFWwindow *window, int key, int scancode, int action,
-                 int mode);
+void KeyCallback(GLFWwindow *window, int key, int scancode, int action, int mode);
 void MouseCallback(GLFWwindow *window, double xPos, double yPos);
-void DoMovement(Player& bomberman, Map& map, Bomb& bomb);
+void DoMovement(Player &bomberman, Map &map, Bomb &bomb);
+
+// Texture functions
+GLuint LoadTexture2D(const char *path);
+GLuint CreateSolidTexture(unsigned char r, unsigned char g, unsigned char b, unsigned char a);
+void ApplyTexture(const Material& material, Shader& lightingShader);
 
 // Map Draw Functions
-void DrawMap(const Map& map, Shader& lightingShader, const MapAssets& assets);
-void DrawFloor(Shader& lightingShader, const MapAssets& assets);
-void DrawWalls(Shader& lightingShader, GLuint wallTexture);
-void DrawMapBlocks(const Map& map, Shader& lightingShader, const MapAssets& assets);
+void DrawMap(const Map& map, Shader& lightingShader, const MapMaterials& map_materials);
+void DrawFloor(Shader& lightingShader, const Material& ground_mat);
+void DrawWalls(Shader& lightingShader, const Material& wall_mat);
+void DrawMapBlocks(const Map& map, Shader& lightingShader, const MapMaterials& map_materials);
 
 // Bomb Draw Function
-void DrawBomb(Bomb& bomb, GLuint bomb_texture, Map& map, GLfloat currentTime, Shader& lightingShader);
+void DrawBomb(Bomb& bomb, Map& map, GLfloat currentTime, Shader& lightingShader);
+void DrawFire(Bomb& bomb, Map& map, glm::vec3 player_position, GLfloat currentTime, Shader& lightingShader);
+void DrawSideFlames(glm::vec3 bombPosition, Map& map, Shader& lightingShader);
 
 // Window dimensions
 const GLuint WIDTH = 800, HEIGHT = 600;
@@ -73,11 +88,14 @@ GLfloat lastY = HEIGHT / 2.0;
 bool keys[1024];
 bool firstMouse = true;
 
+enum CameraMode { MODE_FREE, MODE_FIRST_PERSON };
+CameraMode currentCameraMode = MODE_FREE;
+
 // Map dimensions
 const int ROWS = 11, COLS = 29;
 
-const float half_rows =(ROWS + 1)/2.0f;
-const float half_cols =(COLS + 1)/2.0f;
+const float half_rows = (ROWS + 1) / 2.0f;
+const float half_cols = (COLS + 1) / 2.0f;
 
 float vertices[] = {
   // Vertex coords     // Normal cords      // Texcoords 
@@ -166,7 +184,8 @@ int main() {
 
   // Initialize GLEW to setup the OpenGL Function pointers
   if (GLEW_OK != glewInit()) {
-    std::cout << "Failed to initialize GLEW" << std::endl; return EXIT_FAILURE;
+    std::cout << "Failed to initialize GLEW" << std::endl;
+    return EXIT_FAILURE;
   }
 
   // OpenGL options
@@ -182,9 +201,10 @@ int main() {
 
   // MODEL LOADING
   Model robot("Models/Robot.fbx");
+  // Inicializar animación y animator 
   Animation robotAnimation("Models/Robot.fbx", &robot);
   Animator animator(&robotAnimation);
-  
+
   // First, set the container's VAO (and VBO)
   GLuint VBO, VAO;
   glGenVertexArrays(1, &VAO);
@@ -203,11 +223,23 @@ int main() {
   glEnableVertexAttribArray(2);
   glBindVertexArray(0);
 
-  // Load textures
+  // Materials and textures
   stbi_set_flip_vertically_on_load(true);
+  // Texture loading
   GLuint ground_texture = LoadTexture2D("images/aerial_rocks_02_diff_1k.png");
   GLuint ground_specular = LoadTexture2D("images/aerial_rocks_02_rough_1k.png");
   GLuint wall_texture = LoadTexture2D("images/native_wall_1.png");
+  // Texture creation
+  GLuint brick_texture = CreateSolidTexture(64, 64, 64, 255); // Dark gray for destructible bricks
+  GLuint bomb_texture = CreateSolidTexture(255, 255, 255, 255); // Black texture for bombs
+  GLuint fire_texture = CreateSolidTexture(255, 255, 0, 255); // Yellow texture for fire
+
+  // Material
+  Material ground_mat = {ground_texture, ground_specular, 16.0f, 10.33f, 4.33f};
+  Material wall_mat = {wall_texture, 0, 16.0f};
+  Material brick_mat = {brick_texture, 0, 16.0f};
+  Material bomb_mat = {bomb_texture, 0, 16.0f};
+  Material fire_mat = {fire_texture, 0, 16.0f};
 
   // Configuring lightingShader
   lightingShader.use();
@@ -215,7 +247,6 @@ int main() {
   // Material properties
   lightingShader.setInt("material.diffuse", 0);
   lightingShader.setInt("material.specular", 1);
-  lightingShader.setFloat("material.shininess", 16.0f);
 
   // Dir light properties
   lightingShader.setVec3("dirLight.direction", -0.2f, -1.0f, -0.3f);
@@ -226,44 +257,8 @@ int main() {
   // Initialize random seed
   srand(static_cast<unsigned int>(time(NULL)));
 
-  // Generate a dark gray texture for destructible bricks
-  GLuint brick_texture;
-  glGenTextures(1, &brick_texture);
-  glBindTexture(GL_TEXTURE_2D, brick_texture);
-  unsigned char darkGray[] = {64, 64, 64, 255};
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, darkGray);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
-  // Generate a red texture for enemies
-  GLuint enemy_red_texture;
-  glGenTextures(1, &enemy_red_texture);
-  glBindTexture(GL_TEXTURE_2D, enemy_red_texture);
-  unsigned char redColor[] = {255, 0, 0, 255};
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, redColor);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
-  // Generate a blue texture for Onil enemies
-  GLuint enemy_blue_texture;
-  glGenTextures(1, &enemy_blue_texture);
-  glBindTexture(GL_TEXTURE_2D, enemy_blue_texture);
-  unsigned char blueColor[] = {0, 0, 255, 255};
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, blueColor);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
-  // Generate a red texture for enemies
-  GLuint bomb_texture;
-  glGenTextures(1, &bomb_texture);
-  glBindTexture(GL_TEXTURE_2D, bomb_texture);
-  unsigned char black_color[] = {255, 255, 255, 255};
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, black_color);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
   // Map
-  // Create map logic
+  // Create map logic grid
   Map map(ROWS, COLS);
   map.genMap();
   map.genHidden();
@@ -273,18 +268,17 @@ int main() {
   std::vector<Enemy> enemies = Enemy::SpawnEnemies(map, 6, 8);
 
   // Set map assets for drawing
-  MapAssets mapAssets;
-  mapAssets.groundTexture = ground_texture;
-  mapAssets.groundSpecular = ground_specular;
-  mapAssets.wallTexture = wall_texture;
-  mapAssets.brickTexture = brick_texture;
+  MapMaterials map_materials;
+  map_materials.ground_mat = ground_mat;
+  map_materials.wall_mat = wall_mat;
+  map_materials.brick_mat = brick_mat;
 
   // Player
   // The initial position is in the secure zone map(0,0)
   Player bomberman(glm::vec3(-half_cols + 1, -0.49f, -half_rows + 1), glm::vec2(0.0f, 1.0f));
 
-  // Initializing Bomb object with duratin 3s and -0.1 y_pos
-  Bomb bomb(3.0f, -0.1f);
+  // Initializing Bomb object with duration and y_pos
+  Bomb bomb(2.5f, -0.1f);
 
   // Set the projection type and parameters
   glm::mat4 projection = glm::perspective(camera.GetZoom(), 
@@ -324,80 +318,56 @@ int main() {
 
     lightingShader.use();
 
+    if (currentCameraMode == MODE_FIRST_PERSON) {
+      camera.setPosition(bomberman.getPosition() + glm::vec3(0.0f, 0.8f, 0.0f));
+    }
+
     // CAMERA ------
     glm::mat4 view = camera.GetViewMatrix();
     lightingShader.setMat4("view", view);
     lightingShader.setMat4("projection", projection); // Set projection
     lightingShader.setVec3("viewPos", camera.GetPosition());
-
     glBindVertexArray(VAO);
 
     // MAP ------
-    DrawMap(map, lightingShader, mapAssets);
-
-    // ENEMIES ------
-    glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, 0); // No specular
-
-    lightingShader.setVec2("uvScale", 1.0f, 1.0f);
-
-    for (const auto& enemy : enemies) {
-        glActiveTexture(GL_TEXTURE0);
-        if (enemy.getType() == EnemyType::BALLOM) {
-            glBindTexture(GL_TEXTURE_2D, enemy_red_texture);
-        } else {
-            glBindTexture(GL_TEXTURE_2D, enemy_blue_texture);
-        }
-
-        glm::mat4 model(1.0f);
-        // Translate to enemy position and apply orientation (though a simple cube doesn't show orientation well, we'll add it)
-        model = glm::translate(model, enemy.getPosition()) * glm::toMat4(enemy.getOrientation());
-        model = glm::scale(model, glm::vec3(0.8f, 0.8f, 0.8f)); // A bit smaller than the walls
-        lightingShader.setMat4("model", model);
-        glDrawArrays(GL_TRIANGLES, 0, 36);
-    }
+    DrawMap(map, lightingShader, map_materials);
 
     // BOMBS ------
-    DrawBomb(bomb, bomb_texture, map, currentFrame, lightingShader);
+    ApplyTexture(bomb_mat, lightingShader);
+    DrawBomb(bomb, map, currentFrame, lightingShader);
+    ApplyTexture(fire_mat, lightingShader);
+    DrawFire(bomb, map, bomberman.getPosition(), currentFrame, lightingShader);
 
-    glBindVertexArray(0); 
     // ROBOT ------
     skeletalAnimShader.use();
     
-     //Send uniforms
+    // Send uniforms
     skeletalAnimShader.setMat4("view", view);
     skeletalAnimShader.setMat4("projection", projection);
 
-     //Send bones matrices
-    //auto transforms = proceduralAnimator.ComputeIdle(robot, currentFrame);
-    //for (size_t i = 0; i < transforms.size(); ++i)
-      //  skeletalAnimShader.setMat4("finalBonesMatrices[" + std::to_string(i) + "]", transforms[i]);
+    // Send bones matrices
+     auto transforms = animator.GetFinalBoneMatrices();
+     glm::quat torsRotation = glm::angleAxis(glm::radians(-90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+     transforms[0] = glm::toMat4(torsRotation);
+     for (size_t i = 0; i < transforms.size(); ++i)
+       skeletalAnimShader.setMat4("finalBonesMatrices[" + std::to_string(i) + "]", transforms[i]);
 
-    // EnvÃ­a matrices identidad para todos los huesos
-    //std::vector<glm::mat4> identities(100, glm::mat4(1.0f));
-    //for (size_t i = 0; i < identities.size(); ++i)
-      //  skeletalAnimShader.setMat4("finalBonesMatrices[" + std::to_string(i) + "]", identities[i]);
-
-    auto transforms = animator.GetFinalBoneMatrices();
-    glm::quat torsRotation = glm::angleAxis(glm::radians(-90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-    transforms[0] = glm::toMat4(torsRotation);
-    for (size_t i = 0; i < transforms.size(); ++i)
-        skeletalAnimShader.setMat4("finalBonesMatrices[" + std::to_string(i) + "]", transforms[i]);
-
-    float tiempo = glfwGetTime();
-    float balanceo = sin(tiempo * 2.0f) * 5.0f;
+     float tiempo = glfwGetTime();
+     float oscilacion = sin(tiempo * 3.0f) * 0.5f;
 
     glm::mat4 model(1.0f);
-    //model = glm::translate(model, bomberman.getPosition()) * glm::toMat4(bomberman.getOrientation());
-    //glm::vec3 robotPos = bomberman.getPosition() + glm::vec3(0.0f, 0.49f, 0.0f);
-    model = glm::translate(model, bomberman.getPosition() + glm::vec3(0.3f, 0.0f, 0.0f));
+    model = glm::translate(model, bomberman.getPosition() + glm::vec3(0.0f, 0.0f, 0.0f));
     model = model * glm::toMat4(bomberman.getOrientation());
-    model = glm::rotate(model, glm::radians(-90.0f), glm::vec3(0.0f, 1.0f, 0.0f)); 
-    model = glm::rotate(model, glm::radians(balanceo), glm::vec3(0, 1, 0));
-    model = glm::scale(model, glm::vec3(0.2f, 0.2f, 0.2f));
+    model = glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    model = glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    model = glm::rotate(model, glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+    model = glm::rotate(model, glm::radians(-90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    model = glm::rotate(model, oscilacion, glm::vec3(0, 1, 0));
+    model = glm::scale(model, glm::vec3(0.3f, 0.3f, 0.3f));
     skeletalAnimShader.setMat4("model", model);
     robot.Draw(skeletalAnimShader);
-    
+
+    glBindVertexArray(0);
 
     // Swap the screen buffers
     glfwSwapBuffers(window);
@@ -417,8 +387,10 @@ GLuint LoadTexture2D(const char *path) {
 
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST_MIPMAP_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
+                  GL_LINEAR_MIPMAP_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER,
+                  GL_NEAREST_MIPMAP_NEAREST);
 
   // Diffuse map
   unsigned char *image;
@@ -445,37 +417,58 @@ GLuint LoadTexture2D(const char *path) {
     return 0;
   }
 
-  glTexImage2D(GL_TEXTURE_2D, 0, format, textureWidth, textureHeight, 0, format, GL_UNSIGNED_BYTE, image);
+  glTexImage2D(GL_TEXTURE_2D, 0, format, textureWidth, textureHeight, 0, format,
+               GL_UNSIGNED_BYTE, image);
   glGenerateMipmap(GL_TEXTURE_2D);
 
   stbi_image_free(image);
   return texture;
 }
 
+GLuint CreateSolidTexture(unsigned char r, unsigned char g, unsigned char b, unsigned char a) {
+    GLuint texture;
+    unsigned char color[] = { r, g, b, a };
 
-void DrawMap(const Map& map, Shader& lightingShader, const MapAssets& assets) {
-  // FLOOR ------
-  DrawFloor(lightingShader, assets);
+    glGenTextures(1, &texture);
+    glBindTexture(GL_TEXTURE_2D, texture);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, color);
+    glBindTexture(GL_TEXTURE_2D, 0);
 
-  // WALLS ------
-  DrawWalls(lightingShader, assets.wallTexture);
-
-  // MAP OBJECTS ------
-  DrawMapBlocks(map, lightingShader, assets);
-
+    return texture;
 }
 
-void DrawFloor(Shader& lightingShader, const MapAssets& assets) {
+void ApplyTexture(const Material& material, Shader& lightingShader) {
+      // Bind diffuse map
+      glActiveTexture(GL_TEXTURE0);
+      glBindTexture(GL_TEXTURE_2D, material.diffuse);
+
+      // Bind specular map
+      glActiveTexture(GL_TEXTURE1);
+      glBindTexture(GL_TEXTURE_2D, material.specular);
+
+      lightingShader.setFloat("material.shininess", material.shininess);
+      lightingShader.setVec2("uvScale", material.uvScaleX, material.uvScaleY);
+  }
+
+void DrawMap(const Map& map, Shader& lightingShader, const MapMaterials& map_materials) {
+  // FLOOR ------
+  DrawFloor(lightingShader, map_materials.ground_mat);
+
+  // WALLS ------
+  DrawWalls(lightingShader, map_materials.wall_mat);
+
+  // MAP OBJECTS ------
+  DrawMapBlocks(map, lightingShader, map_materials);
+}
+
+void DrawFloor(Shader& lightingShader, const Material& ground_mat) {
   glm::mat4 model(1.0f);
 
-  // Bind diffuse map
-  glActiveTexture(GL_TEXTURE0);
-  glBindTexture(GL_TEXTURE_2D, assets.groundTexture);
-  // Bind specular map
-  glActiveTexture(GL_TEXTURE1);
-  glBindTexture(GL_TEXTURE_2D, assets.groundSpecular);
-
-  lightingShader.setVec2("uvScale", 10.33f, 4.33f); // texture scale
+  ApplyTexture(ground_mat, lightingShader);
 
   // Model transformations
   model = glm::scale(model, glm::vec3(COLS, 1.0f, ROWS));
@@ -486,17 +479,10 @@ void DrawFloor(Shader& lightingShader, const MapAssets& assets) {
   glDrawArrays(GL_TRIANGLES, 30, 6);
 }
 
-void DrawWalls(Shader& lightingShader, GLuint wallTexture) {
+void DrawWalls(Shader& lightingShader, const Material& wall_mat) {
   glm::mat4 model(1.0f);
 
-  // Bind diffuse map
-  glActiveTexture(GL_TEXTURE0);
-  glBindTexture(GL_TEXTURE_2D, wallTexture);
-  // Unbind specular map for walls so they don't use the floor's specular
-  glActiveTexture(GL_TEXTURE1);
-  glBindTexture(GL_TEXTURE_2D, 0);
-
-  lightingShader.setVec2("uvScale", 1.0f, 1.0f); // texture scale
+  ApplyTexture(wall_mat, lightingShader);
 
   for (float x = -half_cols; x <= half_cols; x += 1.0f) {
     model = glm::mat4(1.0f); // Reset model matrix
@@ -511,7 +497,7 @@ void DrawWalls(Shader& lightingShader, GLuint wallTexture) {
   }
 
   // Draw side walls
-  for (float z = -half_rows+1.0f; z <= half_rows-1.0f; z += 1.0f) {
+  for (float z = -half_rows + 1.0f; z <= half_rows - 1.0f; z += 1.0f) {
     // Reset model transformations
     model = glm::mat4(1.0f);
     model = glm::translate(model, glm::vec3(half_cols, 0.0f, z));
@@ -528,13 +514,13 @@ void DrawWalls(Shader& lightingShader, GLuint wallTexture) {
   }
 }
 
-void DrawMapBlocks(const Map& map, Shader& lightingShader, const MapAssets& assets) {
+void DrawMapBlocks(const Map& map, Shader& lightingShader, const MapMaterials& map_materials) {
   glm::mat4 model(1.0f);
 
   for (int row = 0; row < ROWS; row++) {
     for (int col = 0; col < COLS; col++) {
       int cell = map.getCell(row, col);
-      if (cell == 0 || cell == 5)
+      if (cell == 0 || cell == 5 || cell == 6)
         continue;
 
       float xPos = col - (half_cols - 1);
@@ -542,12 +528,10 @@ void DrawMapBlocks(const Map& map, Shader& lightingShader, const MapAssets& asse
 
       if (cell == 1) {
         // Indestructible pillar
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, assets.wallTexture);
+        ApplyTexture(map_materials.wall_mat, lightingShader);
       } else if (cell >= 2 && cell <= 4) {
         // Destructible brick (including hidden exit and power-ups)
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, assets.brickTexture);
+        ApplyTexture(map_materials.brick_mat, lightingShader);
       }
 
       model = glm::mat4(1.0f);
@@ -558,66 +542,154 @@ void DrawMapBlocks(const Map& map, Shader& lightingShader, const MapAssets& asse
   }
 }
 
-void DrawBomb(Bomb& bomb, GLuint bomb_texture, Map& map, GLfloat currentTime, Shader& lightingShader) {
+void DrawBomb(Bomb& bomb, Map& map, GLfloat currentTime, Shader& lightingShader) {
     if (bomb.getBombState() == true) // If the bomb is activated
     {
-      if (currentTime >= bomb.getBombExpiration()) // If the bomb explodes
-        bomb.expireBomb(bomb.getBombPosition(), map);
-
-      // Texture
-      glActiveTexture(GL_TEXTURE0);
-      glBindTexture(GL_TEXTURE_2D, bomb_texture);
-      glActiveTexture(GL_TEXTURE1);
-      glBindTexture(GL_TEXTURE_2D, 0); // No specular
-
-      lightingShader.setVec2("uvScale", 1.0f, 1.0f);
+      glm::vec3 bomb_position = bomb.getBombPosition();
+      if (currentTime >= bomb.getBombExpiration()) { // If the bomb explodes
+        bomb.expireBomb(bomb_position, map, currentTime);
+      }
 
       glm::mat4 model(1.0f);
-      model = glm::translate(model, bomb.getBombPosition());
+      model = glm::translate(model, bomb_position);
       model = glm::scale(model, glm::vec3(0.9f, 0.9f, 0.9f));
       lightingShader.setMat4("model", model);
       glDrawArrays(GL_TRIANGLES, 0, 36);
     }
 }
 
+void DrawFire(Bomb& bomb, Map& map, glm::vec3 player_position, GLfloat currentTime, Shader& lightingShader) {
+
+    if (bomb.isFireActive() == true) // If the bomb already exploded
+    {
+      glm::vec3 bombPosition = bomb.getBombPosition();
+      MapIndices grid_position = map.toMapIndices(bombPosition);
+
+      bomb.checkCollision(player_position, map);
+
+      if (currentTime >= bomb.getFireExpiration()) { // If the bomb explodes
+        bomb.putOutFire(grid_position, map);
+      }
+
+      // Drawing the center
+      glm::mat4 model(1.0f);
+      model = glm::translate(model, bombPosition);
+      model = glm::scale(model, glm::vec3(1.0f, 1.0f, 1.0f));
+      lightingShader.setMat4("model", model);
+      glDrawArrays(GL_TRIANGLES, 0, 36);
+
+      DrawSideFlames(bombPosition, map, lightingShader);
+    }
+}
+
+void DrawSideFlames(glm::vec3 bombPosition, Map& map, Shader& lightingShader) {
+  glm::mat4 model(1.0f);
+
+  // Drawing the side flames (two per iteration)
+  for (int i = 0; i < 2; i++) {
+    pair<GLfloat, GLfloat> increments;
+
+    if (i % 2 == 0)
+      increments = {1, 0}; // X axis side flames
+    else
+      increments = {0, 1}; // Z axis side flames
+
+    // Calculate the 1st flame position
+    glm::vec3 sideflame_position = bombPosition + glm::vec3(increments.first, 0.0f, increments.second);
+    MapIndices grid_position = map.toMapIndices(sideflame_position);
+    int cell = map.getCell(grid_position.row, grid_position.col);
+
+    // If there aren't indestructible blocks
+    if (cell == 6) {
+      // Draw 1st flame
+      model = glm::mat4(1.0f);
+      model = glm::translate(model, sideflame_position);
+      model = glm::scale(model, glm::vec3(0.9f, 0.9f, 0.9f));
+      lightingShader.setMat4("model", model);
+      glDrawArrays(GL_TRIANGLES, 0, 36);
+    }
+
+
+    // Calculate the 2nd flame position
+    sideflame_position = bombPosition + glm::vec3(-increments.first, 0.0f, -increments.second);
+    grid_position = map.toMapIndices(sideflame_position);
+    cell = map.getCell(grid_position.row, grid_position.col);
+
+    // If there aren't indestructible blocks
+    if (cell == 6 ) {
+      // Draw 2nd flame
+      model = glm::mat4(1.0f);
+      model = glm::translate(model, sideflame_position);
+      model = glm::scale(model, glm::vec3(0.9f, 0.9f, 0.9f));
+      lightingShader.setMat4("model", model);
+      glDrawArrays(GL_TRIANGLES, 0, 36);
+    }
+  }
+}
+
 // Moves/alters the camera positions based on user input
 void DoMovement(Player& bomberman, Map& map, Bomb& bomb) {
   // Camera controls
-  if (keys[GLFW_KEY_UP]) {
-    camera.ProcessKeyboard(FORWARD, deltaTime);
-  }
+  if (currentCameraMode == MODE_FREE) {
+    if (keys[GLFW_KEY_UP]) {
+      camera.ProcessKeyboard(FORWARD, deltaTime);
+    }
 
-  if (keys[GLFW_KEY_DOWN]) {
-    camera.ProcessKeyboard(BACKWARD, deltaTime);
-  }
+    if (keys[GLFW_KEY_DOWN]) {
+      camera.ProcessKeyboard(BACKWARD, deltaTime);
+    }
 
-  if (keys[GLFW_KEY_LEFT]) {
-    camera.ProcessKeyboard(LEFT, deltaTime);
-  }
+    if (keys[GLFW_KEY_LEFT]) {
+      camera.ProcessKeyboard(LEFT, deltaTime);
+    }
 
-  if (keys[GLFW_KEY_RIGHT]) {
-    camera.ProcessKeyboard(RIGHT, deltaTime);
+    if (keys[GLFW_KEY_RIGHT]) {
+      camera.ProcessKeyboard(RIGHT, deltaTime);
+    }
   }
 
   // Player controls
-  if (keys[GLFW_KEY_W]) {
-    bomberman.ProcessKeyboard(NORTH, deltaTime, map);
-  }
+  if (currentCameraMode == MODE_FREE) {
+    if (keys[GLFW_KEY_W]) {
+      bomberman.ProcessKeyboard(NORTH, deltaTime, map);
+    }
 
-  if (keys[GLFW_KEY_S]) {
-    bomberman.ProcessKeyboard(SOUTH, deltaTime, map);
-  }
+    if (keys[GLFW_KEY_S]) {
+      bomberman.ProcessKeyboard(SOUTH, deltaTime, map);
+    }
 
-  if (keys[GLFW_KEY_A]) {
-    bomberman.ProcessKeyboard(WEST, deltaTime, map);
-  }
+    if (keys[GLFW_KEY_A]) {
+      bomberman.ProcessKeyboard(WEST, deltaTime, map);
+    }
 
-  if (keys[GLFW_KEY_D]) {
-    bomberman.ProcessKeyboard(EAST, deltaTime, map);
+    if (keys[GLFW_KEY_D]) {
+      bomberman.ProcessKeyboard(EAST, deltaTime, map);
+    }
+  } else if (currentCameraMode == MODE_FIRST_PERSON) {
+    if (keys[GLFW_KEY_W]) {
+      bomberman.ProcessKeyboardFPS(NORTH, camera.GetFront(), camera.GetRight(),
+                                   deltaTime, map);
+    }
+
+    if (keys[GLFW_KEY_S]) {
+      bomberman.ProcessKeyboardFPS(SOUTH, camera.GetFront(), camera.GetRight(),
+                                   deltaTime, map);
+    }
+
+    if (keys[GLFW_KEY_A]) {
+      bomberman.ProcessKeyboardFPS(WEST, camera.GetFront(), camera.GetRight(),
+                                   deltaTime, map);
+    }
+
+    if (keys[GLFW_KEY_D]) {
+      bomberman.ProcessKeyboardFPS(EAST, camera.GetFront(), camera.GetRight(),
+                                   deltaTime, map);
+    }
   }
 
   // Place bomb
-  if (keys[GLFW_KEY_SPACE] && bomb.getBombState() == false) { 
+  bool can_place_bomb = bomb.getBombState() == false && bomb.isFireActive() == false;
+  if (keys[GLFW_KEY_SPACE] && can_place_bomb) {
     bomb.activateBomb(bomberman.getPosition(), glfwGetTime(), map);
     bomberman.setCanPassBomb(true);
   }
@@ -628,6 +700,11 @@ void KeyCallback(GLFWwindow *window, int key, int scancode, int action,
                  int mode) {
   if (GLFW_KEY_ESCAPE == key && GLFW_PRESS == action) {
     glfwSetWindowShouldClose(window, GL_TRUE);
+  }
+
+  if (key == GLFW_KEY_C && action == GLFW_PRESS) {
+    currentCameraMode =
+        (currentCameraMode == MODE_FREE) ? MODE_FIRST_PERSON : MODE_FREE;
   }
 
   if (key >= 0 && key < 1024) {

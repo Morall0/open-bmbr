@@ -8,12 +8,6 @@ C:\Users\yulia\source\repos\open-bmbr\Open-BMBR\bone.h(56,20): warning C4244: 'i
 C:\Users\yulia\source\repos\open-bmbr\Open-BMBR\bone.h(67,20): warning C4244: 'inicializando': conversión de 'double' a 'float'; posible pérdida de datos
   (compilando archivo de origen "Main.cpp")
   
-C:\Users\yulia\source\repos\open-bmbr\Open-BMBR\model_animation.h(179,37): warning C4018: '<': no coinciden signed/unsigned
-  (compilando archivo de origen "Main.cpp")
-  
-C:\Users\yulia\source\repos\open-bmbr\Open-BMBR\model_animation.h(204,5): warning C4018: '<=': no coinciden signed/unsigned
-  (compilando archivo de origen "Main.cpp")
-  
 C:\Users\yulia\source\repos\open-bmbr\Open-BMBR\animation.h(43,25): warning C4244: '=': conversión de 'double' a 'float'; posible pérdida de datos
   (compilando archivo de origen "Main.cpp")
   
@@ -23,26 +17,46 @@ C:\Users\yulia\source\repos\open-bmbr\Open-BMBR\animation.h(44,31): warning C424
 C:\Users\yulia\source\repos\open-bmbr\Open-BMBR\animation.h(68,44): warning C4244: 'return': conversión de 'int' a 'float'; posible pérdida de datos
   (compilando archivo de origen "Main.cpp")
   
-C:\Users\yulia\source\repos\open-bmbr\Open-BMBR\animation.h(110,21): warning C4018: '<': no coinciden signed/unsigned
+C:\Users\yulia\source\repos\open-bmbr\Open-BMBR\Main.cpp(298,26): warning C4244: 'inicializando': conversión de 'double' a 'GLfloat'; posible pérdida de datos
+C:\Users\yulia\source\repos\open-bmbr\Open-BMBR\Main.cpp(355,19): warning C4244: 'inicializando': conversión de 'double' a 'float'; posible pérdida de datos
+C:\Users\yulia\source\repos\open-bmbr\Open-BMBR\Main.cpp(693,59): warning C4244: 'argumento': conversión de 'double' a 'GLfloat'; posible pérdida de datos
+C:\Users\yulia\source\repos\open-bmbr\Open-BMBR\Main.cpp(721,13): warning C4244: '=': conversión de 'double' a 'GLfloat'; posible pérdida de datos
+C:\Users\yulia\source\repos\open-bmbr\Open-BMBR\Main.cpp(722,13): warning C4244: '=': conversión de 'double' a 'GLfloat'; posible pérdida de datos
+C:\Users\yulia\source\repos\open-bmbr\Open-BMBR\Main.cpp(726,19): warning C4244: 'inicializando': conversión de 'double' a 'GLfloat'; posible pérdida de datos
+C:\Users\yulia\source\repos\open-bmbr\Open-BMBR\Main.cpp(727,19): warning C4244: 'inicializando': conversión de 'double' a 'GLfloat'; posible pérdida de datos
+C:\Users\yulia\source\repos\open-bmbr\Open-BMBR\Main.cpp(730,11): warning C4244: '=': conversión de 'double' a 'GLfloat'; posible pérdida de datos
+C:\Users\yulia\source\repos\open-bmbr\Open-BMBR\Main.cpp(731,11): warning C4244: '=': conversión de 'double' a 'GLfloat'; posible pérdida de datos
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\utility(274,16): warning C4244: 'inicializando': conversión de '_Ty' a '_Ty1'; posible pérdida de datos
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\utility(274,16): warning C4244:         with
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\utility(274,16): warning C4244:         [
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\utility(274,16): warning C4244:             _Ty=int
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\utility(274,16): warning C4244:         ]
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\utility(274,16): warning C4244:         and
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\utility(274,16): warning C4244:         [
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\utility(274,16): warning C4244:             _Ty1=GLfloat
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\utility(274,16): warning C4244:         ]
+  (compilando archivo de origen "Main.cpp")
+      C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\utility(274,16):
+      el contexto de creación de instancias de la plantilla (el más antiguo primero) es
+          C:\Users\yulia\source\repos\open-bmbr\Open-BMBR\Main.cpp(593,20):
+          Vea la referencia a la creación de una instancia de la función plantilla "std::pair<GLfloat,GLfloat>::pair<int,int,0>(_Other1 &&,_Other2 &&) noexcept" que se está compilando
+          with
+          [
+              _Other1=int,
+              _Other2=int
+          ]
+              C:\Users\yulia\source\repos\open-bmbr\Open-BMBR\Main.cpp(593,18):
+              vea la primera referencia a “std::pair<GLfloat,GLfloat>::pair” en “DrawSideFlames”
+  
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\utility(274,54): warning C4244: 'inicializando': conversión de '_Ty' a '_Ty2'; posible pérdida de datos
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\utility(274,54): warning C4244:         with
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\utility(274,54): warning C4244:         [
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\utility(274,54): warning C4244:             _Ty=int
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\utility(274,54): warning C4244:         ]
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\utility(274,54): warning C4244:         and
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\utility(274,54): warning C4244:         [
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\utility(274,54): warning C4244:             _Ty2=GLfloat
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\utility(274,54): warning C4244:         ]
   (compilando archivo de origen "Main.cpp")
   
-C:\Users\yulia\source\repos\open-bmbr\Open-BMBR\Main.cpp(304,26): warning C4244: 'inicializando': conversión de 'double' a 'GLfloat'; posible pérdida de datos
-C:\Users\yulia\source\repos\open-bmbr\Open-BMBR\Main.cpp(387,18): warning C4244: 'inicializando': conversión de 'double' a 'float'; posible pérdida de datos
-C:\Users\yulia\source\repos\open-bmbr\Open-BMBR\Main.cpp(644,13): warning C4244: '=': conversión de 'double' a 'GLfloat'; posible pérdida de datos
-C:\Users\yulia\source\repos\open-bmbr\Open-BMBR\Main.cpp(645,13): warning C4244: '=': conversión de 'double' a 'GLfloat'; posible pérdida de datos
-C:\Users\yulia\source\repos\open-bmbr\Open-BMBR\Main.cpp(649,19): warning C4244: 'inicializando': conversión de 'double' a 'GLfloat'; posible pérdida de datos
-C:\Users\yulia\source\repos\open-bmbr\Open-BMBR\Main.cpp(650,19): warning C4244: 'inicializando': conversión de 'double' a 'GLfloat'; posible pérdida de datos
-C:\Users\yulia\source\repos\open-bmbr\Open-BMBR\Main.cpp(653,11): warning C4244: '=': conversión de 'double' a 'GLfloat'; posible pérdida de datos
-C:\Users\yulia\source\repos\open-bmbr\Open-BMBR\Main.cpp(654,11): warning C4244: '=': conversión de 'double' a 'GLfloat'; posible pérdida de datos
-  Robot.cpp
-C:\Users\yulia\source\repos\open-bmbr\Open-BMBR\model_animation.h(179,37): warning C4018: '<': no coinciden signed/unsigned
-  (compilando archivo de origen "Robot.cpp")
-  
-C:\Users\yulia\source\repos\open-bmbr\Open-BMBR\model_animation.h(204,5): warning C4018: '<=': no coinciden signed/unsigned
-  (compilando archivo de origen "Robot.cpp")
-  
-  Generando código...
-soil2-debug.lib(image_DXT.obj) : warning LNK4099: no se encontró PDB 'soil2-debug.pdb' con 'soil2-debug.lib(image_DXT.obj)' o en 'C:\Users\yulia\source\repos\open-bmbr\Debug\soil2-debug.pdb'; se vinculará el objeto sin tener en cuenta información de depuración
-soil2-debug.lib(image_helper.obj) : warning LNK4099: no se encontró PDB 'soil2-debug.pdb' con 'soil2-debug.lib(image_helper.obj)' o en 'C:\Users\yulia\source\repos\open-bmbr\Debug\soil2-debug.pdb'; se vinculará el objeto sin tener en cuenta información de depuración
-soil2-debug.lib(SOIL2.obj) : warning LNK4099: no se encontró PDB 'soil2-debug.pdb' con 'soil2-debug.lib(SOIL2.obj)' o en 'C:\Users\yulia\source\repos\open-bmbr\Debug\soil2-debug.pdb'; se vinculará el objeto sin tener en cuenta información de depuración
   Open-BMBR.vcxproj -> C:\Users\yulia\source\repos\open-bmbr\Debug\Open-BMBR.exe

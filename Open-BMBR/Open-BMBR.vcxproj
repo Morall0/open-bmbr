@@ -22,6 +22,7 @@
     <ClInclude Include="animation.h" />
     <ClInclude Include="animator.h" />
     <ClInclude Include="animdata.h" />
+    <ClInclude Include="Bomb.hpp" />
     <ClInclude Include="bone.h" />
     <ClInclude Include="Camera.h" />
     <ClInclude Include="Mesh.h" />
