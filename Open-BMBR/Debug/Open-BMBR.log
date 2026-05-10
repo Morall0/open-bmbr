@@ -8,24 +8,23 @@ C:\Users\yulia\source\repos\open-bmbr\Open-BMBR\bone.h(56,20): warning C4244: 'i
 C:\Users\yulia\source\repos\open-bmbr\Open-BMBR\bone.h(67,20): warning C4244: 'inicializando': conversión de 'double' a 'float'; posible pérdida de datos
   (compilando archivo de origen "Main.cpp")
   
-C:\Users\yulia\source\repos\open-bmbr\Open-BMBR\animation.h(43,25): warning C4244: '=': conversión de 'double' a 'float'; posible pérdida de datos
+C:\Users\yulia\source\repos\open-bmbr\Open-BMBR\animation.h(45,25): warning C4244: '=': conversión de 'double' a 'float'; posible pérdida de datos
   (compilando archivo de origen "Main.cpp")
   
-C:\Users\yulia\source\repos\open-bmbr\Open-BMBR\animation.h(44,31): warning C4244: '=': conversión de 'double' a 'int'; posible pérdida de datos
+C:\Users\yulia\source\repos\open-bmbr\Open-BMBR\animation.h(46,31): warning C4244: '=': conversión de 'double' a 'int'; posible pérdida de datos
   (compilando archivo de origen "Main.cpp")
   
-C:\Users\yulia\source\repos\open-bmbr\Open-BMBR\animation.h(68,44): warning C4244: 'return': conversión de 'int' a 'float'; posible pérdida de datos
+C:\Users\yulia\source\repos\open-bmbr\Open-BMBR\animation.h(72,44): warning C4244: 'return': conversión de 'int' a 'float'; posible pérdida de datos
   (compilando archivo de origen "Main.cpp")
   
-C:\Users\yulia\source\repos\open-bmbr\Open-BMBR\Main.cpp(298,26): warning C4244: 'inicializando': conversión de 'double' a 'GLfloat'; posible pérdida de datos
-C:\Users\yulia\source\repos\open-bmbr\Open-BMBR\Main.cpp(355,19): warning C4244: 'inicializando': conversión de 'double' a 'float'; posible pérdida de datos
-C:\Users\yulia\source\repos\open-bmbr\Open-BMBR\Main.cpp(693,59): warning C4244: 'argumento': conversión de 'double' a 'GLfloat'; posible pérdida de datos
-C:\Users\yulia\source\repos\open-bmbr\Open-BMBR\Main.cpp(721,13): warning C4244: '=': conversión de 'double' a 'GLfloat'; posible pérdida de datos
-C:\Users\yulia\source\repos\open-bmbr\Open-BMBR\Main.cpp(722,13): warning C4244: '=': conversión de 'double' a 'GLfloat'; posible pérdida de datos
-C:\Users\yulia\source\repos\open-bmbr\Open-BMBR\Main.cpp(726,19): warning C4244: 'inicializando': conversión de 'double' a 'GLfloat'; posible pérdida de datos
-C:\Users\yulia\source\repos\open-bmbr\Open-BMBR\Main.cpp(727,19): warning C4244: 'inicializando': conversión de 'double' a 'GLfloat'; posible pérdida de datos
-C:\Users\yulia\source\repos\open-bmbr\Open-BMBR\Main.cpp(730,11): warning C4244: '=': conversión de 'double' a 'GLfloat'; posible pérdida de datos
-C:\Users\yulia\source\repos\open-bmbr\Open-BMBR\Main.cpp(731,11): warning C4244: '=': conversión de 'double' a 'GLfloat'; posible pérdida de datos
+C:\Users\yulia\source\repos\open-bmbr\Open-BMBR\Main.cpp(302,26): warning C4244: 'inicializando': conversión de 'double' a 'GLfloat'; posible pérdida de datos
+C:\Users\yulia\source\repos\open-bmbr\Open-BMBR\Main.cpp(721,59): warning C4244: 'argumento': conversión de 'double' a 'GLfloat'; posible pérdida de datos
+C:\Users\yulia\source\repos\open-bmbr\Open-BMBR\Main.cpp(749,13): warning C4244: '=': conversión de 'double' a 'GLfloat'; posible pérdida de datos
+C:\Users\yulia\source\repos\open-bmbr\Open-BMBR\Main.cpp(750,13): warning C4244: '=': conversión de 'double' a 'GLfloat'; posible pérdida de datos
+C:\Users\yulia\source\repos\open-bmbr\Open-BMBR\Main.cpp(754,19): warning C4244: 'inicializando': conversión de 'double' a 'GLfloat'; posible pérdida de datos
+C:\Users\yulia\source\repos\open-bmbr\Open-BMBR\Main.cpp(755,19): warning C4244: 'inicializando': conversión de 'double' a 'GLfloat'; posible pérdida de datos
+C:\Users\yulia\source\repos\open-bmbr\Open-BMBR\Main.cpp(758,11): warning C4244: '=': conversión de 'double' a 'GLfloat'; posible pérdida de datos
+C:\Users\yulia\source\repos\open-bmbr\Open-BMBR\Main.cpp(759,11): warning C4244: '=': conversión de 'double' a 'GLfloat'; posible pérdida de datos
 C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\utility(274,16): warning C4244: 'inicializando': conversión de '_Ty' a '_Ty1'; posible pérdida de datos
 C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\utility(274,16): warning C4244:         with
 C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\utility(274,16): warning C4244:         [
@@ -38,14 +37,14 @@ C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\
   (compilando archivo de origen "Main.cpp")
       C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\utility(274,16):
       el contexto de creación de instancias de la plantilla (el más antiguo primero) es
-          C:\Users\yulia\source\repos\open-bmbr\Open-BMBR\Main.cpp(593,20):
+          C:\Users\yulia\source\repos\open-bmbr\Open-BMBR\Main.cpp(602,20):
           Vea la referencia a la creación de una instancia de la función plantilla "std::pair<GLfloat,GLfloat>::pair<int,int,0>(_Other1 &&,_Other2 &&) noexcept" que se está compilando
           with
           [
               _Other1=int,
               _Other2=int
           ]
-              C:\Users\yulia\source\repos\open-bmbr\Open-BMBR\Main.cpp(593,18):
+              C:\Users\yulia\source\repos\open-bmbr\Open-BMBR\Main.cpp(602,18):
               vea la primera referencia a “std::pair<GLfloat,GLfloat>::pair” en “DrawSideFlames”
   
 C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\utility(274,54): warning C4244: 'inicializando': conversión de '_Ty' a '_Ty2'; posible pérdida de datos

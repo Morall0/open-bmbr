@@ -22,7 +22,7 @@ class Animation
 public:
 	Animation() = default;
 
-	Animation(const std::string& animationPath, Model* model)
+	Animation(const std::string& animationPath, Model* model, int animationIndex = 0)
 	{
 		Assimp::Importer importer;
 		//const aiScene* scene = importer.ReadFile(animationPath, aiProcess_Triangulate);
@@ -39,13 +39,17 @@ public:
 			std::cout << "ERROR: El archivo no tiene animaciones" << std::endl;
 			return;
 		}
-		auto animation = scene->mAnimations[0];
+		//auto animation = scene->mAnimations[0];
+		auto animation = scene->mAnimations[animationIndex];
+		std::cout << "Nombre animacion " << animationIndex << ": " << animation->mName.C_Str() << std::endl;
 		m_Duration = animation->mDuration;
 		m_TicksPerSecond = animation->mTicksPerSecond;
 		aiMatrix4x4 globalTransformation = scene->mRootNode->mTransformation;
 		globalTransformation = globalTransformation.Inverse();
 		ReadHierarchyData(m_RootNode, scene->mRootNode);
 		ReadMissingBones(animation, *model);
+		std::cout << "Total animaciones en FBX: " << scene->mNumAnimations << std::endl;
+		std::cout << "Cargando indice: " << animationIndex << std::endl;
 	}
 
 	~Animation()

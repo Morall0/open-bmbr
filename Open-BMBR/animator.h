@@ -22,12 +22,12 @@ public:
 			m_FinalBoneMatrices.push_back(glm::mat4(1.0f));
 	}
 
-	void UpdateAnimation(float dt)
+	void UpdateAnimation(float dt, float speedMultiplier = 1.0f)
 	{
 		m_DeltaTime = dt;
 		if (m_CurrentAnimation)
 		{
-			m_CurrentTime += m_CurrentAnimation->GetTicksPerSecond() * dt;
+			m_CurrentTime += m_CurrentAnimation->GetTicksPerSecond() * dt * speedMultiplier;
 			m_CurrentTime = fmod(m_CurrentTime, m_CurrentAnimation->GetDuration());
 			CalculateBoneTransform(&m_CurrentAnimation->GetRootNode(), glm::mat4(1.0f));
 		}
@@ -35,8 +35,13 @@ public:
 
 	void PlayAnimation(Animation* pAnimation)
 	{
-		m_CurrentAnimation = pAnimation;
-		m_CurrentTime = 0.0f;
+		//m_CurrentAnimation = pAnimation;
+		//m_CurrentTime = 0.0f;
+		if (m_CurrentAnimation != pAnimation) // solo cambia si es diferente
+		{
+			m_CurrentAnimation = pAnimation;
+			m_CurrentTime = 0.0f;
+		}
 	}
 
 	void CalculateBoneTransform(const AssimpNodeData* node, glm::mat4 parentTransform)
