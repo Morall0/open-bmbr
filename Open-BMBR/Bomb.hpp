@@ -2,28 +2,34 @@
 #define BOMB_HPP
 
 #include <glm/glm.hpp>
-// #include <GL/glew.h>
+#include <GL/glew.h>
 #include "Map.hpp"
 
 class Bomb {
 public:
   // Constructor
-  Bomb (double bomb_duration, double y_bomb_position);
+  Bomb (GLfloat bomb_duration, GLfloat y_bomb_position);
 
   void setBombPosition(glm::vec3 position);
-  void activateBomb(glm::vec3 position, double time, Map& map);
-  void expireBomb(glm::vec3 position, Map& map);
+  void activateBomb(glm::vec3 position, GLfloat time, Map& map);
+  void expireBomb(glm::vec3 position, Map& map, GLfloat currentTime);
 
+  bool isFireActive();
+  void putOutFire(MapIndices indices, Map& map);
   glm::vec3 getBombPosition();
-  double getBombExpiration();
+  GLfloat getBombExpiration();
+  GLfloat getFireExpiration();
   bool getBombState();
+  bool checkCollision(glm::vec3 player_position, const Map& map);
 
 private:
   // Bomb Atributes
   glm::vec3 bomb_position;
-  double bomb_time;
-  double bomb_duration;
+  GLfloat bomb_time;
+  GLfloat bomb_duration;
   bool bomb_state;
+  bool fire_active;
+  GLfloat fire_time;
 };
 
 #endif

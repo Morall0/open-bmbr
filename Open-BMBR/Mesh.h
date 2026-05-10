@@ -43,14 +43,16 @@ public:
     vector<Vertex>       vertices;
     vector<unsigned int> indices;
     vector<Texture>      textures;
+    glm::vec3            diffuseColor;
     unsigned int VAO;
 
     // constructor
-    Mesh(vector<Vertex> vertices, vector<unsigned int> indices, vector<Texture> textures)
+    Mesh(vector<Vertex> vertices, vector<unsigned int> indices, vector<Texture> textures, glm::vec3 diffuseColor = glm::vec3(1.0f))
     {
         this->vertices = vertices;
         this->indices = indices;
         this->textures = textures;
+        this->diffuseColor = diffuseColor;
 
         // now that we have all the required data, set the vertex buffers and its attribute pointers.
         setupMesh();
@@ -59,6 +61,10 @@ public:
     // render the mesh
     void Draw(Shader &shader) 
     {
+        // pass diffuse color and texture usage flag
+        glUniform3f(glGetUniformLocation(shader.ID, "diffuseColor"), diffuseColor.x, diffuseColor.y, diffuseColor.z);
+        glUniform1i(glGetUniformLocation(shader.ID, "useTexture"), textures.empty() ? 0 : 1);
+
         // bind appropriate textures
         unsigned int diffuseNr  = 1;
         unsigned int specularNr = 1;

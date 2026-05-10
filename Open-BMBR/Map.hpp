@@ -25,12 +25,14 @@ public:
 
     void genMap();
     void genHidden();
-    void printMap();
+    void printMap() const;
     int getCell(int row, int col) const;
     int getTotalRows() const;
     int getTotalCols() const;
-    void setBomb(int row, int col);
-    void detonateBomb(int row, int col);
+    void setBomb(MapIndices indices);
+    void setFire(MapIndices indices);
+    void detonateBomb(MapIndices indices);
+    void extinguishFire(MapIndices indices);
     MapIndices toMapIndices(glm::vec3 position) const;
 };
 
