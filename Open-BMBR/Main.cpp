@@ -229,8 +229,6 @@ int main() {
   GLuint wall_texture = LoadTexture2D("images/native_wall_1.png");
   // Texture creation
   GLuint brick_texture = CreateSolidTexture(64, 64, 64, 255); // Dark gray for destructible bricks
-  GLuint ballom_texture = CreateSolidTexture(255, 0, 0, 255); // Red texture for Ballom enemies
-  GLuint onil_texture = CreateSolidTexture(0, 0, 255, 255); // Blue texture for Onil enemies
   GLuint bomb_texture = CreateSolidTexture(255, 255, 255, 255); // Black texture for bombs
   GLuint fire_texture = CreateSolidTexture(255, 255, 0, 255); // Yellow texture for fire
 
@@ -238,8 +236,6 @@ int main() {
   Material ground_mat = {ground_texture, ground_specular, 16.0f, 10.33f, 4.33f};
   Material wall_mat = {wall_texture, 0, 16.0f};
   Material brick_mat = {brick_texture, 0, 16.0f};
-  Material ballom_mat = {ballom_texture, 0, 16.0f};
-  Material onil_mat = {onil_texture, 0, 16.0f};
   Material bomb_mat = {bomb_texture, 0, 16.0f};
   Material fire_mat = {fire_texture, 0, 16.0f};
 
