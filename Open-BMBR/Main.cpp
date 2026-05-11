@@ -60,7 +60,7 @@ struct MapMaterials {
 void KeyCallback(GLFWwindow *window, int key, int scancode, int action, int mode);
 void MouseCallback(GLFWwindow *window, double xPos, double yPos);
 void DoMovement(Player &bomberman, Map &map, Bomb &bomb, Animator& animator,
-    Animation& idleAnimation, Animation& walkAnimation);
+    Animation& idleAnimation, Animation& walkAnimation, bool isDead);
 
 // Texture functions
 GLuint LoadTexture2D(const char *path);
@@ -75,7 +75,7 @@ void DrawMapBlocks(const Map& map, Shader& lightingShader, const MapMaterials& m
 
 // Bomb Draw Function
 void DrawBomb(Bomb& bomb, Map& map, GLfloat currentTime, Shader& lightingShader);
-void DrawFire(Bomb& bomb, Map& map, glm::vec3 player_position, GLfloat currentTime, Shader& lightingShader);
+void DrawFire(Bomb& bomb, Map& map, glm::vec3 player_position, GLfloat currentTime, Shader& lightingShader, bool& isDead, GLfloat& timeOfDeath, Animator& animator, Animation& deathAnimation);
 void DrawSideFlames(glm::vec3 bombPosition, Map& map, Shader& lightingShader);
 
 // Window dimensions
@@ -147,6 +147,9 @@ float vertices[] = {
 GLfloat deltaTime = 0.0f; // Time between current frame and last frame
 GLfloat lastFrame = 0.0f; // Time of last frame
 bool wasMoving = false;
+bool isDead = false;
+bool mostrarRobot = true;
+GLfloat timeOfDeath = 0.0f;
 
 int main() {
   // Init GLFW
@@ -205,10 +208,11 @@ int main() {
   Model robot("Models/Robot.fbx");
   // Inicializar animación y animator 
   Animation idleAnimation("Models/Robot.fbx", &robot, 0);
-  Animation walkAnimation("Models/Robot.fbx", &robot, 1);
+  Animation walkAnimation("Models/Robot.fbx", &robot, 2);
+  Animation deathAnimation("Models/Robot.fbx", &robot, 3);
   Animator animator(&idleAnimation);
   //Animator animator(&robotAnimation);
-
+ 
   // First, set the container's VAO (and VBO)
   GLuint VBO, VAO;
   glGenVertexArrays(1, &VAO);
@@ -230,16 +234,19 @@ int main() {
   // Materials and textures
   stbi_set_flip_vertically_on_load(true);
   // Texture loading
-  GLuint ground_texture = LoadTexture2D("images/aerial_rocks_02_diff_1k.png");
-  GLuint ground_specular = LoadTexture2D("images/aerial_rocks_02_rough_1k.png");
-  GLuint wall_texture = LoadTexture2D("images/native_wall_1.png");
+  //GLuint ground_texture = LoadTexture2D("images/aerial_rocks_02_diff_1k.png");
+  GLuint ground_texture = LoadTexture2D("images/pasto.jpg");
+  //GLuint ground_specular = LoadTexture2D("images/aerial_rocks_02_rough_1k.png");
+  GLuint wall_texture = LoadTexture2D("images/bloque.jpeg");
+  GLuint brick_texture = LoadTexture2D("images/bloque3.png");
+  GLuint fire_texture = LoadTexture2D("images/fire.png");
   // Texture creation
-  GLuint brick_texture = CreateSolidTexture(64, 64, 64, 255); // Dark gray for destructible bricks
+  //GLuint brick_texture = CreateSolidTexture(64, 64, 64, 255); // Dark gray for destructible bricks
   GLuint bomb_texture = CreateSolidTexture(255, 255, 255, 255); // Black texture for bombs
-  GLuint fire_texture = CreateSolidTexture(255, 255, 0, 255); // Yellow texture for fire
+  //GLuint fire_texture = CreateSolidTexture(255, 255, 0, 255); // Yellow texture for fire
 
   // Material
-  Material ground_mat = {ground_texture, ground_specular, 16.0f, 10.33f, 4.33f};
+  Material ground_mat = {ground_texture, 0, 16.0f, 10.33f, 4.33f};
   Material wall_mat = {wall_texture, 0, 16.0f};
   Material brick_mat = {brick_texture, 0, 16.0f};
   Material bomb_mat = {bomb_texture, 0, 16.0f};
@@ -290,11 +297,7 @@ int main() {
                                           0.1f,
                                           100.0f);
 
-  for (auto& [name, info] : robot.GetBoneInfoMap())
-      std::cout << "[" << info.id << "] " << name << std::endl;
-
   ProceduralAnimator proceduralAnimator;
-
 
   // Game loop
   while (!glfwWindowShouldClose(window)) {
@@ -306,7 +309,7 @@ int main() {
     // Check if any events have been activated (key pressed, mouse moved etc.)
     // and call corresponding response functions
     glfwPollEvents();
-    DoMovement(bomberman, map, bomb, animator, idleAnimation, walkAnimation);
+    DoMovement(bomberman, map, bomb, animator, idleAnimation, walkAnimation, isDead);
 
     for (auto& enemy : enemies) {
       enemy.Update(deltaTime, map, bomberman.getPosition());
@@ -345,37 +348,48 @@ int main() {
     ApplyTexture(bomb_mat, lightingShader);
     DrawBomb(bomb, map, currentFrame, lightingShader);
     ApplyTexture(fire_mat, lightingShader);
-    DrawFire(bomb, map, bomberman.getPosition(), currentFrame, lightingShader);
+    DrawFire(bomb, map, bomberman.getPosition(), currentFrame, lightingShader, isDead, timeOfDeath, animator, deathAnimation);
 
     // ROBOT ------
-    skeletalAnimShader.use();
+    bool mostrarRobot = true;
+
+    if (isDead) {
+        // Si ya pasó el tiempo de la animación de muerte, ocultamos al robot
+        float deathDurationSeconds = deathAnimation.GetDuration() / deathAnimation.GetTicksPerSecond();
+        if ((currentFrame - timeOfDeath) >= deathDurationSeconds) {
+            mostrarRobot = false;
+        }
+    }
     
-    // Send uniforms
-    skeletalAnimShader.setMat4("view", view);
-    skeletalAnimShader.setMat4("projection", projection);
+    if (mostrarRobot) {
+        skeletalAnimShader.use();
 
-    // Send bones matrices
-     auto transforms = animator.GetFinalBoneMatrices();
-     glm::quat torsRotation = glm::angleAxis(glm::radians(-90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-     transforms[0] = glm::toMat4(torsRotation);
-     for (size_t i = 0; i < transforms.size(); ++i)
-       skeletalAnimShader.setMat4("finalBonesMatrices[" + std::to_string(i) + "]", transforms[i]);
+        // Send uniforms
+        skeletalAnimShader.setMat4("view", view);
+        skeletalAnimShader.setMat4("projection", projection);
 
-     //float tiempo = glfwGetTime();
-     //float oscilacion = sin(tiempo * 3.0f) * 0.5f;
+        // Send bones matrices
+        auto transforms = animator.GetFinalBoneMatrices();
+        glm::quat torsRotation = glm::angleAxis(glm::radians(-90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+        transforms[0] = glm::toMat4(torsRotation);
+        for (size_t i = 0; i < transforms.size(); ++i)
+            skeletalAnimShader.setMat4("finalBonesMatrices[" + std::to_string(i) + "]", transforms[i]);
 
-    glm::mat4 model(1.0f);
-    model = glm::translate(model, bomberman.getPosition() + glm::vec3(0.0f, 0.0f, 0.0f));
-    model = model * glm::toMat4(bomberman.getOrientation());
-    model = glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-    model = glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-    model = glm::rotate(model, glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-    model = glm::rotate(model, glm::radians(-90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-    //model = glm::rotate(model, oscilacion, glm::vec3(0, 1, 0));
-    model = glm::scale(model, glm::vec3(0.3f, 0.3f, 0.3f));
-    skeletalAnimShader.setMat4("model", model);
-    robot.Draw(skeletalAnimShader);
+        //float tiempo = glfwGetTime();
+        //float oscilacion = sin(tiempo * 3.0f) * 0.5f;
 
+        glm::mat4 model(1.0f);
+        model = glm::translate(model, bomberman.getPosition() + glm::vec3(0.0f, 0.0f, 0.0f));
+        model = model * glm::toMat4(bomberman.getOrientation());
+        model = glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        model = glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        model = glm::rotate(model, glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+        model = glm::rotate(model, glm::radians(-90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        //model = glm::rotate(model, oscilacion, glm::vec3(0, 1, 0));
+        model = glm::scale(model, glm::vec3(0.3f, 0.3f, 0.3f));
+        skeletalAnimShader.setMat4("model", model);
+        robot.Draw(skeletalAnimShader);
+    }
     glBindVertexArray(0);
 
     // Swap the screen buffers
@@ -567,14 +581,20 @@ void DrawBomb(Bomb& bomb, Map& map, GLfloat currentTime, Shader& lightingShader)
     }
 }
 
-void DrawFire(Bomb& bomb, Map& map, glm::vec3 player_position, GLfloat currentTime, Shader& lightingShader) {
+void DrawFire(Bomb& bomb, Map& map, glm::vec3 player_position, GLfloat currentTime, Shader& lightingShader, bool& isDead, GLfloat& timeOfDeath, Animator& animator, Animation& deathAnimation) {
 
     if (bomb.isFireActive() == true) // If the bomb already exploded
     {
       glm::vec3 bombPosition = bomb.getBombPosition();
       MapIndices grid_position = map.toMapIndices(bombPosition);
 
-      bomb.checkCollision(player_position, map);
+      //bomb.checkCollision(player_position, map);
+      // Si el robot toca el fuego y no está muerto aún
+      if (!isDead && bomb.checkCollision(player_position, map)) {
+          isDead = true;
+          timeOfDeath = currentTime;
+          animator.PlayAnimation(&deathAnimation);
+      }
 
       if (currentTime >= bomb.getFireExpiration()) { // If the bomb explodes
         bomb.putOutFire(grid_position, map);
@@ -638,8 +658,8 @@ void DrawSideFlames(glm::vec3 bombPosition, Map& map, Shader& lightingShader) {
 
 // Moves/alters the camera positions based on user input
 void DoMovement(Player& bomberman, Map& map, Bomb& bomb, Animator& animator,
-    Animation& idleAnimation, Animation& walkAnimation) {
-    bool isMoving = false;
+    Animation& idleAnimation, Animation& walkAnimation, bool isDead) {
+    
   // Camera controls
   if (currentCameraMode == MODE_FREE) {
     if (keys[GLFW_KEY_UP]) {
@@ -658,7 +678,8 @@ void DoMovement(Player& bomberman, Map& map, Bomb& bomb, Animator& animator,
       camera.ProcessKeyboard(RIGHT, deltaTime);
     }
   }
-
+  if (isDead) return;
+  bool isMoving = false;
   // Player controls
   if (currentCameraMode == MODE_FREE) {
     if (keys[GLFW_KEY_W]) {

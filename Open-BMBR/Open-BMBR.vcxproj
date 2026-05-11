@@ -28,6 +28,7 @@
     <ClInclude Include="Mesh.h" />
     <ClInclude Include="Model.h" />
     <ClInclude Include="model_animation.h" />
+    <ClInclude Include="Player.hpp" />
     <ClInclude Include="Robot.h" />
     <ClInclude Include="Shader.h" />
   </ItemGroup>
