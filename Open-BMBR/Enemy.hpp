@@ -20,6 +20,8 @@ public:
     glm::vec3 getPosition() const;
     glm::quat getOrientation() const;
     EnemyType getType() const;
+    bool getIsDead() const;
+    float getDeathScale() const;
 
     static std::vector<Enemy> SpawnEnemies(const Map& map, int minEnemies, int maxEnemies);
 
@@ -30,6 +32,9 @@ protected:
     EnemyType type;
     float speed;
     bool isMoving;
+    bool isDead;
+    float deathTimer;   // Tiempo acumulado desde que murió
+    float deathScale;   // Escala visual (1.0 -> 0.0 durante la animación de muerte)
 
     void pickNewTarget(const Map& map, glm::vec3 playerPos);
     std::pair<int, int> getNextAStarMove(const Map& map, int startRow, int startCol, int targetRow, int targetCol);

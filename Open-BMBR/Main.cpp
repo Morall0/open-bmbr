@@ -296,8 +296,14 @@ int main() {
     glfwPollEvents();
     DoMovement(bomberman, map, bomb);
 
-    for (auto& enemy : enemies) {
-      enemy.Update(deltaTime, map, bomberman.getPosition());
+    for (auto it = enemies.begin(); it != enemies.end(); ) {
+      it->Update(deltaTime, map, bomberman.getPosition());
+      // Eliminar del vector solo cuando la animacion de muerte termino (escala = 0)
+      if (it->getIsDead() && it->getDeathScale() <= 0.0f) {
+        it = enemies.erase(it);
+      } else {
+        ++it;
+      }
     }
 
     // Update Animation
@@ -353,9 +359,10 @@ int main() {
       float inflationSpeed = 2.0f;
       float inflationIntensity = 0.05f;
 
-      float frameScale = sin(currentFrame * inflationSpeed) * inflationIntensity;
+      // La escala base oscila con el tiempo (animacion de respiracion) salvo que este muriendo
+      float baseScale = enemy.getIsDead() ? enemy.getDeathScale() : (0.4f + sin(currentFrame * inflationSpeed) * inflationIntensity);
 
-      float finalScale = 0.4f + frameScale; //default scale = 0.4
+      float finalScale = baseScale;
 
       // Elevate Ballom a bit more than Onil
       float yOffset = (enemy.getType() == EnemyType::BALLOM) ? 0.55f : 0.4f;

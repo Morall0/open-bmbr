@@ -8,7 +8,8 @@
 
 //Constructor
 Enemy::Enemy(glm::vec3 startPos, EnemyType type) 
-    : position(startPos), targetPosition(startPos), type(type), isMoving(false) 
+    : position(startPos), targetPosition(startPos), type(type), isMoving(false), isDead(false),
+      deathTimer(0.0f), deathScale(1.0f)
 {
     orientation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
     
@@ -22,6 +23,14 @@ Enemy::Enemy(glm::vec3 startPos, EnemyType type)
 
 glm::vec3 Enemy::getPosition() const {
     return position;
+}
+
+bool Enemy::getIsDead() const {
+    return isDead;
+}
+
+float Enemy::getDeathScale() const {
+    return deathScale;
 }
 
 glm::quat Enemy::getOrientation() const {
@@ -106,6 +115,22 @@ std::vector<Enemy> Enemy::SpawnEnemies(const Map& map, int minEnemies, int maxEn
 }
 
 void Enemy::Update(float deltaTime, const Map& map, glm::vec3 playerPos) {
+    // Si ya esta muerto: animar encogimiento, no moverse
+    if (isDead) {
+        const float deathDuration = 0.5f; // Segundos que dura la animacion de muerte
+        deathTimer += deltaTime;
+        deathScale = 1.0f - (deathTimer / deathDuration);
+        if (deathScale < 0.0f) deathScale = 0.0f;
+        return;
+    }
+
+    // Verificar si el enemigo esta tocando el fuego (ID 6)
+    MapIndices gridPos = map.toMapIndices(position);
+    if (map.getCell(gridPos.row, gridPos.col) == 6) {
+        isDead = true;
+        return;
+    }
+
     if (!isMoving) {
         pickNewTarget(map, playerPos);
     }
