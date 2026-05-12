@@ -348,15 +348,22 @@ int main() {
     for (const auto &enemy : enemies) {
       glm::mat4 model(1.0f);
       
-      // Elevate Ballom a bit more (0.5f) than Onil (0.4f)
+      // Elevate Ballom a bit more than Onil
       float yOffset = (enemy.getType() == EnemyType::BALLOM) ? 0.55f : 0.4f;
       glm::vec3 drawPosition = enemy.getPosition() + glm::vec3(0.0f, yOffset, 0.0f);
       
       model = glm::translate(model, drawPosition) *
               glm::toMat4(enemy.getOrientation());
       
+      float inflationSpeed = 2.0f;
+      float inflationIntensity = 0.05f;
+
+      float frameScale = sin(currentFrame * inflationSpeed) * inflationIntensity;
+
+      float finalScale = 0.4f + frameScale; //default scale = 0.4 
+
       // Adjust scale as needed for the imported models
-      model = glm::scale(model, glm::vec3(0.4f, 0.4f, 0.4f)); 
+      model = glm::scale(model, glm::vec3(finalScale, finalScale, finalScale)); 
       
       // Fix predefined model orientation (y -90)
       model = glm::rotate(model, glm::radians(-90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
@@ -547,6 +554,12 @@ void DrawMapBlocks(const Map& map, Shader& lightingShader, const MapMaterials& m
 void DrawBomb(Bomb& bomb, Map& map, GLfloat currentTime, Shader& lightingShader) {
     if (bomb.getBombState() == true) // If the bomb is activated
     {
+      float blinkSpeed = 6.0f;
+      float blinkIntensity = 0.05f;
+
+      float blinkScale = sin(currentTime * blinkSpeed) * blinkIntensity;
+      float fianlBlinkScale = 0.9f + blinkScale; //default scale = 0.9f
+      
       glm::vec3 bomb_position = bomb.getBombPosition();
       if (currentTime >= bomb.getBombExpiration()) { // If the bomb explodes
         bomb.expireBomb(bomb_position, map, currentTime);
@@ -554,7 +567,7 @@ void DrawBomb(Bomb& bomb, Map& map, GLfloat currentTime, Shader& lightingShader)
 
       glm::mat4 model(1.0f);
       model = glm::translate(model, bomb_position);
-      model = glm::scale(model, glm::vec3(0.9f, 0.9f, 0.9f));
+      model = glm::scale(model, glm::vec3(fianlBlinkScale, fianlBlinkScale, fianlBlinkScale));
       lightingShader.setMat4("model", model);
       glDrawArrays(GL_TRIANGLES, 0, 36);
     }
