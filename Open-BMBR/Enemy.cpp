@@ -14,9 +14,9 @@ Enemy::Enemy(glm::vec3 startPos, EnemyType type)
     
     // Set speed based on type
     if (type == EnemyType::BALLOM) {
-        speed = 4.0f * 0.4f;
+        speed = 4.0f * 0.3f;
     } else {
-        speed = 4.0f * 0.6f; // ONIL
+        speed = 4.0f * 0.5f; // ONIL
     }
 }
 

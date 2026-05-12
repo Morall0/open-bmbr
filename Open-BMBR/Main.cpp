@@ -87,7 +87,7 @@ GLfloat lastY = HEIGHT / 2.0;
 bool keys[1024];
 bool firstMouse = true;
 
-enum CameraMode { MODE_FREE, MODE_FIRST_PERSON };
+enum CameraMode { MODE_FREE, MODE_FIRST_PERSON, MODE_SIDE_SCROLL };
 CameraMode currentCameraMode = MODE_FREE;
 
 // Map dimensions
@@ -311,6 +311,8 @@ int main() {
 
     if (currentCameraMode == MODE_FIRST_PERSON) {
       camera.setPosition(bomberman.getPosition() + glm::vec3(0.0f, 0.8f, 0.0f));
+    } else if (currentCameraMode == MODE_SIDE_SCROLL) {
+      camera.UpdateSideScrollPosition(bomberman.getPosition());
     }
 
     // CAMERA ------
@@ -348,22 +350,22 @@ int main() {
     for (const auto &enemy : enemies) {
       glm::mat4 model(1.0f);
       
-      // Elevate Ballom a bit more than Onil
-      float yOffset = (enemy.getType() == EnemyType::BALLOM) ? 0.55f : 0.4f;
-      glm::vec3 drawPosition = enemy.getPosition() + glm::vec3(0.0f, yOffset, 0.0f);
-      
-      model = glm::translate(model, drawPosition) *
-              glm::toMat4(enemy.getOrientation());
-      
       float inflationSpeed = 2.0f;
       float inflationIntensity = 0.05f;
 
       float frameScale = sin(currentFrame * inflationSpeed) * inflationIntensity;
 
-      float finalScale = 0.4f + frameScale; //default scale = 0.4 
+      float finalScale = 0.4f + frameScale; //default scale = 0.4
+
+      // Elevate Ballom a bit more than Onil
+      float yOffset = (enemy.getType() == EnemyType::BALLOM) ? 0.55f : 0.4f;
+       
+      glm::vec3 drawPosition = enemy.getPosition() + glm::vec3(0.0f, yOffset, 0.0f);
+      
+      model = glm::translate(model, drawPosition) * glm::toMat4(enemy.getOrientation()); 
 
       // Adjust scale as needed for the imported models
-      model = glm::scale(model, glm::vec3(finalScale, finalScale, finalScale)); 
+      model = glm::scale(model, glm::vec3(finalScale, finalScale, finalScale));
       
       // Fix predefined model orientation (y -90)
       model = glm::rotate(model, glm::radians(-90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
@@ -664,7 +666,7 @@ void DoMovement(Player& bomberman, Map& map, Bomb& bomb) {
   }
 
   // Player controls
-  if (currentCameraMode == MODE_FREE) {
+  if (currentCameraMode == MODE_FREE || currentCameraMode == MODE_SIDE_SCROLL) {
     if (keys[GLFW_KEY_W]) {
       bomberman.ProcessKeyboard(NORTH, deltaTime, map);
     }
@@ -718,8 +720,9 @@ void KeyCallback(GLFWwindow *window, int key, int scancode, int action,
   }
 
   if (key == GLFW_KEY_C && action == GLFW_PRESS) {
-    currentCameraMode =
-        (currentCameraMode == MODE_FREE) ? MODE_FIRST_PERSON : MODE_FREE;
+    if (currentCameraMode == MODE_FREE) currentCameraMode = MODE_FIRST_PERSON;
+    else if (currentCameraMode == MODE_FIRST_PERSON) currentCameraMode = MODE_SIDE_SCROLL;
+    else currentCameraMode = MODE_FREE;
   }
 
   if (key >= 0 && key < 1024) {

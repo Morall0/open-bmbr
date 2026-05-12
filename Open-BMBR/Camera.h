@@ -140,6 +140,20 @@ public:
 		this->position = pos;
 	}
 
+	void UpdateSideScrollPosition(glm::vec3 targetPosition)
+	{
+		// Limitar el movimiento de la camara a las 4tas columnas (X = -7.0f, X = 7.0f)
+		float cameraX = glm::clamp(targetPosition.x, -7.0f, 7.0f);
+		
+		// Para vista desde arriba: Z = 0.0f (centrado encima) y Y = 15.0f (más alto)
+		this->position = glm::vec3(cameraX, 15.0f, 0.0f);
+		this->yaw = -90.0f;
+		
+		// Pitch cercano a -90.0f mira directamente hacia abajo (usa -89.0f para evitar errores visuales)
+		this->pitch = -89.0f;
+		this->updateCameraVectors();
+	}
+
 private:
 	// Camera Attributes
 	glm::vec3 position;
