@@ -22,17 +22,32 @@ class Animation
 public:
 	Animation() = default;
 
-	Animation(const std::string& animationPath, Model* model)
+	Animation(const std::string& animationPath, Model* model, unsigned int animationIndex)
 	{
 		Assimp::Importer importer;
-		const aiScene* scene = importer.ReadFile(animationPath, aiProcess_Triangulate);
+    const aiScene* scene = importer.ReadFile(animationPath,
+        aiProcess_Triangulate |
+        aiProcess_PopulateArmatureData);
+    // std::cout << "Scene loaded" << std::endl;
 		assert(scene && scene->mRootNode);
-		auto animation = scene->mAnimations[0];
+    // std::cout << "Num animations: " << scene->mNumAnimations << std::endl;
+    // if (scene->mNumAnimations == 0) {
+    //   std::cout << "ERROR: 0 animations" << std::endl;
+    //   return;
+    // }
+		auto animation = scene->mAnimations[animationIndex]; // Select the desired anim
+    // std::cout << "Animation name: " << animation->mName.C_Str() << std::endl;
+    // for (unsigned int i = 0; i<scene->mNumAnimations; i++)
+    //   std::cout << "Animation name [" << i << "]: " << scene->mAnimations[i]->mName.C_Str() << std::endl;
 		m_Duration = animation->mDuration;
 		m_TicksPerSecond = animation->mTicksPerSecond;
-		aiMatrix4x4 globalTransformation = scene->mRootNode->mTransformation;
-		globalTransformation = globalTransformation.Inverse();
+
+    // std::cout << "Reading Hierarchy..." << std::endl;
+    aiMatrix4x4 globalTransformation = scene->mRootNode->mTransformation;
+    globalTransformation = globalTransformation.Inverse();
+    m_GlobalInverseTransform = AssimpGLMHelpers::ConvertMatrixToGLMFormat(globalTransformation);
 		ReadHierarchyData(m_RootNode, scene->mRootNode);
+    // std::cout << "Reading bones..." << std::endl;
 		ReadMissingBones(animation, *model);
 	}
 
@@ -55,12 +70,11 @@ public:
 	
 	inline float GetTicksPerSecond() { return m_TicksPerSecond; }
 	inline float GetDuration() { return m_Duration;}
-	inline const AssimpNodeData& GetRootNode() { return m_RootNode; }
-	inline const std::map<std::string,BoneInfo>& GetBoneIDMap() 
+	inline const AssimpNodeData& GetRootNode() { return m_RootNode; } inline const std::map<std::string,BoneInfo>& GetBoneIDMap()
 	{ 
 		return m_BoneInfoMap;
 	}
-
+  inline const glm::mat4& GetGlobalInverseTransform() { return m_GlobalInverseTransform; }
 private:
 	void ReadMissingBones(const aiAnimation* animation, Model& model)
 	{
@@ -107,4 +121,5 @@ private:
 	std::vector<Bone> m_Bones;
 	AssimpNodeData m_RootNode;
 	std::map<std::string, BoneInfo> m_BoneInfoMap;
+  glm::mat4 m_GlobalInverseTransform;
 };
