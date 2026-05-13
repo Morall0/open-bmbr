@@ -62,7 +62,11 @@ private:
     {
         // read file via ASSIMP
         Assimp::Importer importer;
-        const aiScene* scene = importer.ReadFile(path, aiProcess_Triangulate | aiProcess_GenSmoothNormals | aiProcess_CalcTangentSpace);
+        const aiScene* scene = importer.ReadFile(path,
+            aiProcess_Triangulate |
+            aiProcess_GenSmoothNormals |
+            aiProcess_CalcTangentSpace |
+            aiProcess_PopulateArmatureData);
         // check for errors
         if(!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode) // if is Not Zero
         {
@@ -122,7 +126,7 @@ private:
 			{
 				glm::vec2 vec;
 				vec.x = mesh->mTextureCoords[0][i].x;
-				vec.y = 1.0f - mesh->mTextureCoords[0][i].y;
+				vec.y = mesh->mTextureCoords[0][i].y;
 				vertex.TexCoords = vec;
 			}
 			else
