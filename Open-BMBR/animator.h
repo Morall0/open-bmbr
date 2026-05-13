@@ -11,10 +11,11 @@
 class Animator
 {
 public:
-	Animator(Animation* animation)
+	Animator(Animation* animation, bool looping)
 	{
 		m_CurrentTime = 0.0;
 		m_CurrentAnimation = animation;
+    m_Looping = looping;
 
 		m_FinalBoneMatrices.reserve(100);
 
@@ -22,21 +23,34 @@ public:
 			m_FinalBoneMatrices.push_back(glm::mat4(1.0f));
 	}
 
-	void UpdateAnimation(float dt)
-	{
-		m_DeltaTime = dt;
-		if (m_CurrentAnimation)
-		{
-			m_CurrentTime += m_CurrentAnimation->GetTicksPerSecond() * dt;
-			m_CurrentTime = fmod(m_CurrentTime, m_CurrentAnimation->GetDuration());
-			CalculateBoneTransform(&m_CurrentAnimation->GetRootNode(), glm::mat4(1.0f));
-		}
-	}
+  void UpdateAnimation(float dt)
+  {
+    m_DeltaTime = dt;
+    if (m_CurrentAnimation)
+    {
+      m_CurrentTime += m_CurrentAnimation->GetTicksPerSecond() * dt;
 
-	void PlayAnimation(Animation* pAnimation)
+      if(m_Looping)
+      {
+        m_CurrentTime = fmod(m_CurrentTime, m_CurrentAnimation->GetDuration());
+      }
+      else
+      {
+        if(m_CurrentTime > m_CurrentAnimation->GetDuration())
+        {
+          m_CurrentTime = m_CurrentAnimation->GetDuration();
+        }
+      }
+      CalculateBoneTransform(&m_CurrentAnimation->GetRootNode(),
+          m_CurrentAnimation->GetGlobalInverseTransform());
+    }
+  }
+
+	void PlayAnimation(Animation* pAnimation, bool looping = true)
 	{
 		m_CurrentAnimation = pAnimation;
 		m_CurrentTime = 0.0f;
+    m_Looping = looping;
 	}
 
 	void CalculateBoneTransform(const AssimpNodeData* node, glm::mat4 parentTransform)
@@ -71,10 +85,27 @@ public:
 		return m_FinalBoneMatrices;
 	}
 
+  bool IsFinished()
+  {
+    return m_CurrentTime >=
+      m_CurrentAnimation->GetDuration();
+  }
+
+  Animation* GetCurrentAnimation()
+  {
+    return m_CurrentAnimation;
+  }
+
+  bool IsLooping()
+  {
+      return m_Looping;
+  }
+
 private:
 	std::vector<glm::mat4> m_FinalBoneMatrices;
 	Animation* m_CurrentAnimation;
 	float m_CurrentTime;
 	float m_DeltaTime;
+  bool m_Looping = true;
 
 };

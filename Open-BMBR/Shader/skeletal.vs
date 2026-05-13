@@ -34,6 +34,9 @@ void main()
         totalPosition += localPosition * weights[i];
         vec3 localNormal = mat3(finalBonesMatrices[boneIds[i]]) * norm;
    }
+
+    if (length(totalPosition) < 0.0001)
+      totalPosition = vec4(pos, 1.0f);
 	
     mat4 viewModel = view * model;
     gl_Position =  projection * viewModel * totalPosition;

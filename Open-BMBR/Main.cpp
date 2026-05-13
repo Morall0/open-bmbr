@@ -55,10 +55,17 @@ struct MapMaterials {
     Material brick_mat;
 };
 
+struct AnimationsSet {
+  Animation idleAnim;
+  Animation walkingAnim;
+  Animation deadAnim;
+  Animation punchAnim;
+};
+
 // Function prototypes
 void KeyCallback(GLFWwindow *window, int key, int scancode, int action, int mode);
 void MouseCallback(GLFWwindow *window, double xPos, double yPos);
-void DoMovement(Player &bomberman, Map &map, Bomb &bomb);
+void DoMovement(Player& bomberman, Map& map, Bomb& bomb, Animator& animator, AnimationsSet& animations);
 
 // Texture functions
 GLuint LoadTexture2D(const char *path);
@@ -75,6 +82,8 @@ void DrawMapBlocks(const Map& map, Shader& lightingShader, const MapMaterials& m
 void DrawBomb(Bomb& bomb, Map& map, GLfloat currentTime, Shader& lightingShader);
 void DrawFire(Bomb& bomb, Map& map, glm::vec3 player_position, GLfloat currentTime, Shader& lightingShader);
 void DrawSideFlames(glm::vec3 bombPosition, Map& map, Shader& lightingShader);
+
+void SelectAnimation(Animator& animator, AnimationsSet& animations);
 
 // Window dimensions
 const GLuint WIDTH = 800, HEIGHT = 600;
@@ -95,6 +104,8 @@ const int ROWS = 11, COLS = 29;
 
 const float half_rows = (ROWS + 1) / 2.0f;
 const float half_cols = (COLS + 1) / 2.0f;
+
+bool moving = false;
 
 float vertices[] = {
   // Vertex coords     // Normal cords      // Texcoords 
@@ -160,7 +171,7 @@ int main() {
       glfwCreateWindow(WIDTH, HEIGHT, "Open-BMBR", nullptr, nullptr);
 
   if (nullptr == window) {
-    std::cout << "Failed to create GLFW window" << std::endl;
+    std::cout << "AFailed to create GLFW window" << std::endl;
     glfwTerminate();
 
     return EXIT_FAILURE;
@@ -196,10 +207,23 @@ int main() {
 
   // SHADERS
   Shader lightingShader("Shader/lighting.vs", "Shader/lighting.frag");
-  Shader skeletalAnimShader("Shader/modelLoading.vs", "Shader/modelLoading.frag");
+  Shader skeletalAnimShader("Shader/skeletal.vs", "Shader/skeletal.frag");
+  Shader modelLoadingShader("Shader/modelLoading.vs", "Shader/modelLoading.frag");
+
+  stbi_set_flip_vertically_on_load(true);
 
   // MODEL LOADING
   Model robot("Models/Robot.gltf");
+
+  AnimationsSet animations = {
+    Animation("Models/Robot.gltf", &robot, 2),
+    Animation("Models/Robot.gltf", &robot, 10),
+    Animation("Models/Robot.gltf", &robot, 1),
+    Animation("Models/Robot.gltf", &robot, 5)
+  };
+
+  Animator animator(&animations.idleAnim, true); // Setting base animation
+
   Model ballomModel("Models/Ballom.obj");
   Model onilModel("Models/Onil.obj");
 
@@ -222,7 +246,6 @@ int main() {
   glBindVertexArray(0);
 
   // Materials and textures
-  stbi_set_flip_vertically_on_load(true);
   // Texture loading
   GLuint ground_texture = LoadTexture2D("images/aerial_rocks_02_diff_1k.png");
   GLuint ground_specular = LoadTexture2D("images/aerial_rocks_02_rough_1k.png");
@@ -294,14 +317,14 @@ int main() {
     // Check if any events have been activated (key pressed, mouse moved etc.)
     // and call corresponding response functions
     glfwPollEvents();
-    DoMovement(bomberman, map, bomb);
+    DoMovement(bomberman, map, bomb, animator, animations);
 
     for (auto& enemy : enemies) {
       enemy.Update(deltaTime, map, bomberman.getPosition());
     }
 
     // Update Animation
-    // animator.UpdateAnimation(deltaTime);
+    animator.UpdateAnimation(deltaTime);
 
     // Clear the colorbuffer
     glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
@@ -329,12 +352,17 @@ int main() {
     ApplyTexture(fire_mat, lightingShader);
     DrawFire(bomb, map, bomberman.getPosition(), currentFrame, lightingShader);
 
-    // MODELS (ROBOT + ENEMIES) ------
+    // ROBOT ------
     skeletalAnimShader.use();
 
     // Send uniforms
     skeletalAnimShader.setMat4("view", view);
     skeletalAnimShader.setMat4("projection", projection);
+
+    // Send bones matrices
+    auto transforms = animator.GetFinalBoneMatrices();
+    for (size_t i = 0; i < transforms.size(); ++i)
+      skeletalAnimShader.setMat4("finalBonesMatrices[" + std::to_string(i) + "]", transforms[i]);
 
     if (currentCameraMode != MODE_FIRST_PERSON) {
       glm::mat4 model(1.0f);
@@ -344,6 +372,13 @@ int main() {
       skeletalAnimShader.setMat4("model", model);
       robot.Draw(skeletalAnimShader);
     }
+
+    // ENEMIES ------
+    modelLoadingShader.use();
+
+    // Send uniforms
+    modelLoadingShader.setMat4("view", view);
+    modelLoadingShader.setMat4("projection", projection);
 
     for (const auto &enemy : enemies) {
       glm::mat4 model(1.0f);
@@ -361,11 +396,11 @@ int main() {
       // Fix predefined model orientation (y -90)
       model = glm::rotate(model, glm::radians(-90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
       
-      skeletalAnimShader.setMat4("model", model);
+      modelLoadingShader.setMat4("model", model);
       if (enemy.getType() == EnemyType::BALLOM) {
-        ballomModel.Draw(skeletalAnimShader);
+        ballomModel.Draw(modelLoadingShader);
       } else {
-        onilModel.Draw(skeletalAnimShader);
+        onilModel.Draw(modelLoadingShader);
       }
     }
 
@@ -630,7 +665,7 @@ void DrawSideFlames(glm::vec3 bombPosition, Map& map, Shader& lightingShader) {
 }
 
 // Moves/alters the camera positions based on user input
-void DoMovement(Player& bomberman, Map& map, Bomb& bomb) {
+void DoMovement(Player& bomberman, Map& map, Bomb& bomb, Animator& animator, AnimationsSet& animations) {
   // Camera controls
   if (currentCameraMode == MODE_FREE) {
     if (keys[GLFW_KEY_UP]) {
@@ -652,21 +687,30 @@ void DoMovement(Player& bomberman, Map& map, Bomb& bomb) {
 
   // Player controls
   if (currentCameraMode == MODE_FREE) {
+    moving = false;
+
     if (keys[GLFW_KEY_W]) {
       bomberman.ProcessKeyboard(NORTH, deltaTime, map);
+      moving = true;
     }
 
     if (keys[GLFW_KEY_S]) {
       bomberman.ProcessKeyboard(SOUTH, deltaTime, map);
+      moving = true;
     }
 
     if (keys[GLFW_KEY_A]) {
       bomberman.ProcessKeyboard(WEST, deltaTime, map);
+      moving = true;
     }
 
     if (keys[GLFW_KEY_D]) {
       bomberman.ProcessKeyboard(EAST, deltaTime, map);
+      moving = true;
     }
+
+    SelectAnimation(animator, animations);
+
   } else if (currentCameraMode == MODE_FIRST_PERSON) {
     if (keys[GLFW_KEY_W]) {
       bomberman.ProcessKeyboardFPS(NORTH, camera.GetFront(), camera.GetRight(),
@@ -694,6 +738,36 @@ void DoMovement(Player& bomberman, Map& map, Bomb& bomb) {
   if (keys[GLFW_KEY_SPACE] && can_place_bomb) {
     bomb.activateBomb(bomberman.getPosition(), glfwGetTime(), map);
     bomberman.setCanPassBomb(true);
+    animator.PlayAnimation(&animations.punchAnim, false);
+  }
+}
+
+void SelectAnimation(Animator& animator, AnimationsSet& animations) {
+  if(!animator.IsLooping())
+  {
+    if(!animator.IsFinished())
+      return;
+    else
+    {
+      animator.PlayAnimation(
+          &animations.idleAnim,
+          true
+          );
+    }
+  }
+  if (moving)
+  {
+    if (animator.GetCurrentAnimation() != &animations.walkingAnim)
+    {
+      animator.PlayAnimation(&animations.walkingAnim, true);
+    }
+  }
+  else
+  {
+    if (animator.GetCurrentAnimation() != &animations.idleAnim)
+    {
+      animator.PlayAnimation(&animations.idleAnim, true);
+    }
   }
 }
 

@@ -85,35 +85,29 @@ public:
 	
 
 
-	int GetPositionIndex(float animationTime)
-	{
-		for (int index = 0; index < m_NumPositions - 1; ++index)
-		{
-			if (animationTime < m_Positions[index + 1].timeStamp)
-				return index;
-		}
-		assert(0);
-	}
+  int GetPositionIndex(float animationTime)
+  {
+    for (int index = 0; index < m_NumPositions - 1; ++index)
+      if (animationTime < m_Positions[index + 1].timeStamp)
+        return index;
+    return m_NumPositions - 2; // ← este cambio
+  }
 
-	int GetRotationIndex(float animationTime)
-	{
-		for (int index = 0; index < m_NumRotations - 1; ++index)
-		{
-			if (animationTime < m_Rotations[index + 1].timeStamp)
-				return index;
-		}
-		assert(0);
-	}
+  int GetRotationIndex(float animationTime)
+  {
+    for (int index = 0; index < m_NumRotations - 1; ++index)
+      if (animationTime < m_Rotations[index + 1].timeStamp)
+        return index;
+    return m_NumRotations - 2; // ← este cambio
+  }
 
-	int GetScaleIndex(float animationTime)
-	{
-		for (int index = 0; index < m_NumScalings - 1; ++index)
-		{
-			if (animationTime < m_Scales[index + 1].timeStamp)
-				return index;
-		}
-		assert(0);
-	}
+  int GetScaleIndex(float animationTime)
+  {
+    for (int index = 0; index < m_NumScalings - 1; ++index)
+      if (animationTime < m_Scales[index + 1].timeStamp)
+        return index;
+    return m_NumScalings - 2; // ← este cambio
+  }
 
 
 private:
@@ -129,10 +123,11 @@ private:
 
 	glm::mat4 InterpolatePosition(float animationTime)
 	{
-		if (1 == m_NumPositions)
-			return glm::translate(glm::mat4(1.0f), m_Positions[0].position);
+    if (m_NumPositions == 0) return glm::mat4(1.0f);
+    if (1 == m_NumPositions)
+      return glm::translate(glm::mat4(1.0f), m_Positions[0].position);
 
-		int p0Index = GetPositionIndex(animationTime);
+    int p0Index = GetPositionIndex(animationTime);
 		int p1Index = p0Index + 1;
 		float scaleFactor = GetScaleFactor(m_Positions[p0Index].timeStamp,
 			m_Positions[p1Index].timeStamp, animationTime);
@@ -143,13 +138,13 @@ private:
 
 	glm::mat4 InterpolateRotation(float animationTime)
 	{
-		if (1 == m_NumRotations)
-		{
-			auto rotation = glm::normalize(m_Rotations[0].orientation);
-			return glm::toMat4(rotation);
-		}
+    if (m_NumRotations == 0) return glm::mat4(1.0f);
+    if (1 == m_NumRotations) {
+      auto rotation = glm::normalize(m_Rotations[0].orientation);
+      return glm::toMat4(rotation);
+    }
 
-		int p0Index = GetRotationIndex(animationTime);
+    int p0Index = GetRotationIndex(animationTime);
 		int p1Index = p0Index + 1;
 		float scaleFactor = GetScaleFactor(m_Rotations[p0Index].timeStamp,
 			m_Rotations[p1Index].timeStamp, animationTime);
@@ -162,10 +157,11 @@ private:
 
 	glm::mat4 InterpolateScaling(float animationTime)
 	{
-		if (1 == m_NumScalings)
-			return glm::scale(glm::mat4(1.0f), m_Scales[0].scale);
+    if (m_NumScalings == 0) return glm::mat4(1.0f);
+    if (1 == m_NumScalings)
+      return glm::scale(glm::mat4(1.0f), m_Scales[0].scale);
 
-		int p0Index = GetScaleIndex(animationTime);
+    int p0Index = GetScaleIndex(animationTime);
 		int p1Index = p0Index + 1;
 		float scaleFactor = GetScaleFactor(m_Scales[p0Index].timeStamp,
 			m_Scales[p1Index].timeStamp, animationTime);
