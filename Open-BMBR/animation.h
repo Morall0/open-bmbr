@@ -22,34 +22,18 @@ class Animation
 public:
 	Animation() = default;
 
-	Animation(const std::string& animationPath, Model* model, int animationIndex = 0)
+	Animation(const std::string& animationPath, Model* model)
 	{
 		Assimp::Importer importer;
-		//const aiScene* scene = importer.ReadFile(animationPath, aiProcess_Triangulate);
-		const aiScene* scene = importer.ReadFile(animationPath,
-			aiProcess_Triangulate |
-			aiProcess_FlipUVs);
-		//assert(scene && scene->mRootNode);
-		if (!scene || !scene->mRootNode) {
-			std::cout << "ERROR: No se pudo cargar la escena: " << importer.GetErrorString() << std::endl;
-			return;
-		}
-
-		if (scene->mNumAnimations == 0) {
-			std::cout << "ERROR: El archivo no tiene animaciones" << std::endl;
-			return;
-		}
-		//auto animation = scene->mAnimations[0];
-		auto animation = scene->mAnimations[animationIndex];
-		//std::cout << "Nombre animacion " << animationIndex << ": " << animation->mName.C_Str() << std::endl;
+		const aiScene* scene = importer.ReadFile(animationPath, aiProcess_Triangulate);
+		assert(scene && scene->mRootNode);
+		auto animation = scene->mAnimations[0];
 		m_Duration = animation->mDuration;
 		m_TicksPerSecond = animation->mTicksPerSecond;
 		aiMatrix4x4 globalTransformation = scene->mRootNode->mTransformation;
 		globalTransformation = globalTransformation.Inverse();
 		ReadHierarchyData(m_RootNode, scene->mRootNode);
 		ReadMissingBones(animation, *model);
-		//std::cout << "Total animaciones en FBX: " << scene->mNumAnimations << std::endl;
-		//std::cout << "Cargando indice: " << animationIndex << std::endl;
 	}
 
 	~Animation()

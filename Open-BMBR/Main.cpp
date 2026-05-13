@@ -33,10 +33,9 @@
 #include "animator.h"
 // #include "Model.h"
 #include "Enemy.hpp"
+#include "Player.hpp"
 #include "Shader.h"
 #include "model_animation.h"
-#include "Player.hpp"
-#include "Robot.h"
 
 // Structure for material
 struct Material {
@@ -59,8 +58,7 @@ struct MapMaterials {
 // Function prototypes
 void KeyCallback(GLFWwindow *window, int key, int scancode, int action, int mode);
 void MouseCallback(GLFWwindow *window, double xPos, double yPos);
-void DoMovement(Player &bomberman, Map &map, Bomb &bomb, Animator& animator,
-    Animation& idleAnimation, Animation& walkAnimation, bool isDead);
+void DoMovement(Player &bomberman, Map &map, Bomb &bomb);
 
 // Texture functions
 GLuint LoadTexture2D(const char *path);
@@ -75,7 +73,7 @@ void DrawMapBlocks(const Map& map, Shader& lightingShader, const MapMaterials& m
 
 // Bomb Draw Function
 void DrawBomb(Bomb& bomb, Map& map, GLfloat currentTime, Shader& lightingShader);
-void DrawFire(Bomb& bomb, Map& map, glm::vec3 player_position, GLfloat currentTime, Shader& lightingShader, bool& isDead, GLfloat& timeOfDeath, Animator& animator, Animation& deathAnimation);
+void DrawFire(Bomb& bomb, Map& map, glm::vec3 player_position, GLfloat currentTime, Shader& lightingShader);
 void DrawSideFlames(glm::vec3 bombPosition, Map& map, Shader& lightingShader);
 
 // Window dimensions
@@ -146,10 +144,6 @@ float vertices[] = {
 // Deltatime
 GLfloat deltaTime = 0.0f; // Time between current frame and last frame
 GLfloat lastFrame = 0.0f; // Time of last frame
-bool wasMoving = false;
-bool isDead = false;
-bool mostrarRobot = true;
-GLfloat timeOfDeath = 0.0f;
 
 int main() {
   // Init GLFW
@@ -205,14 +199,10 @@ int main() {
   Shader skeletalAnimShader("Shader/modelLoading.vs", "Shader/modelLoading.frag");
 
   // MODEL LOADING
-  Model robot("Models/Robot.fbx");
-  // Inicializar animación y animator 
-  Animation idleAnimation("Models/Robot.fbx", &robot, 0);
-  Animation walkAnimation("Models/Robot.fbx", &robot, 2);
-  Animation deathAnimation("Models/Robot.fbx", &robot, 3);
-  Animator animator(&idleAnimation);
-  //Animator animator(&robotAnimation);
- 
+  Model robot("Models/Robot.gltf");
+  Model ballomModel("Models/Ballom.obj");
+  Model onilModel("Models/Onil.obj");
+
   // First, set the container's VAO (and VBO)
   GLuint VBO, VAO;
   glGenVertexArrays(1, &VAO);
@@ -234,19 +224,16 @@ int main() {
   // Materials and textures
   stbi_set_flip_vertically_on_load(true);
   // Texture loading
-  //GLuint ground_texture = LoadTexture2D("images/aerial_rocks_02_diff_1k.png");
-  GLuint ground_texture = LoadTexture2D("images/pasto.jpg");
-  //GLuint ground_specular = LoadTexture2D("images/aerial_rocks_02_rough_1k.png");
-  GLuint wall_texture = LoadTexture2D("images/bloque.jpeg");
-  GLuint brick_texture = LoadTexture2D("images/bloque3.png");
-  GLuint fire_texture = LoadTexture2D("images/fire.png");
+  GLuint ground_texture = LoadTexture2D("images/aerial_rocks_02_diff_1k.png");
+  GLuint ground_specular = LoadTexture2D("images/aerial_rocks_02_rough_1k.png");
+  GLuint wall_texture = LoadTexture2D("images/native_wall_1.png");
   // Texture creation
-  //GLuint brick_texture = CreateSolidTexture(64, 64, 64, 255); // Dark gray for destructible bricks
+  GLuint brick_texture = CreateSolidTexture(64, 64, 64, 255); // Dark gray for destructible bricks
   GLuint bomb_texture = CreateSolidTexture(255, 255, 255, 255); // Black texture for bombs
-  //GLuint fire_texture = CreateSolidTexture(255, 255, 0, 255); // Yellow texture for fire
+  GLuint fire_texture = CreateSolidTexture(255, 255, 0, 255); // Yellow texture for fire
 
   // Material
-  Material ground_mat = {ground_texture, 0, 16.0f, 10.33f, 4.33f};
+  Material ground_mat = {ground_texture, ground_specular, 16.0f, 10.33f, 4.33f};
   Material wall_mat = {wall_texture, 0, 16.0f};
   Material brick_mat = {brick_texture, 0, 16.0f};
   Material bomb_mat = {bomb_texture, 0, 16.0f};
@@ -297,8 +284,6 @@ int main() {
                                           0.1f,
                                           100.0f);
 
-  ProceduralAnimator proceduralAnimator;
-
   // Game loop
   while (!glfwWindowShouldClose(window)) {
     // Calculate deltatime of current frame
@@ -309,20 +294,14 @@ int main() {
     // Check if any events have been activated (key pressed, mouse moved etc.)
     // and call corresponding response functions
     glfwPollEvents();
-    DoMovement(bomberman, map, bomb, animator, idleAnimation, walkAnimation, isDead);
+    DoMovement(bomberman, map, bomb);
 
     for (auto& enemy : enemies) {
       enemy.Update(deltaTime, map, bomberman.getPosition());
     }
 
-    
     // Update Animation
-   //animator.UpdateAnimation(deltaTime);
-   if (wasMoving)
-       animator.UpdateAnimation(deltaTime, 3.0f); // walk más rápido
-   else
-       animator.UpdateAnimation(deltaTime, 1.0f); // idle normal
-
+    // animator.UpdateAnimation(deltaTime);
 
     // Clear the colorbuffer
     glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
@@ -348,48 +327,48 @@ int main() {
     ApplyTexture(bomb_mat, lightingShader);
     DrawBomb(bomb, map, currentFrame, lightingShader);
     ApplyTexture(fire_mat, lightingShader);
-    DrawFire(bomb, map, bomberman.getPosition(), currentFrame, lightingShader, isDead, timeOfDeath, animator, deathAnimation);
+    DrawFire(bomb, map, bomberman.getPosition(), currentFrame, lightingShader);
 
-    // ROBOT ------
-    bool mostrarRobot = true;
+    // MODELS (ROBOT + ENEMIES) ------
+    skeletalAnimShader.use();
 
-    if (isDead) {
-        // Si ya pasó el tiempo de la animación de muerte, ocultamos al robot
-        float deathDurationSeconds = deathAnimation.GetDuration() / deathAnimation.GetTicksPerSecond();
-        if ((currentFrame - timeOfDeath) >= deathDurationSeconds) {
-            mostrarRobot = false;
-        }
+    // Send uniforms
+    skeletalAnimShader.setMat4("view", view);
+    skeletalAnimShader.setMat4("projection", projection);
+
+    if (currentCameraMode != MODE_FIRST_PERSON) {
+      glm::mat4 model(1.0f);
+      model = glm::translate(model, bomberman.getPosition()) *
+              glm::toMat4(bomberman.getOrientation());
+      model = glm::scale(model, glm::vec3(0.3f, 0.3f, 0.3f));
+      skeletalAnimShader.setMat4("model", model);
+      robot.Draw(skeletalAnimShader);
     }
-    
-    if (mostrarRobot) {
-        skeletalAnimShader.use();
 
-        // Send uniforms
-        skeletalAnimShader.setMat4("view", view);
-        skeletalAnimShader.setMat4("projection", projection);
-
-        // Send bones matrices
-        auto transforms = animator.GetFinalBoneMatrices();
-        glm::quat torsRotation = glm::angleAxis(glm::radians(-90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-        transforms[0] = glm::toMat4(torsRotation);
-        for (size_t i = 0; i < transforms.size(); ++i)
-            skeletalAnimShader.setMat4("finalBonesMatrices[" + std::to_string(i) + "]", transforms[i]);
-
-        //float tiempo = glfwGetTime();
-        //float oscilacion = sin(tiempo * 3.0f) * 0.5f;
-
-        glm::mat4 model(1.0f);
-        model = glm::translate(model, bomberman.getPosition() + glm::vec3(0.0f, 0.0f, 0.0f));
-        model = model * glm::toMat4(bomberman.getOrientation());
-        model = glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        model = glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-        model = glm::rotate(model, glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-        model = glm::rotate(model, glm::radians(-90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-        //model = glm::rotate(model, oscilacion, glm::vec3(0, 1, 0));
-        model = glm::scale(model, glm::vec3(0.3f, 0.3f, 0.3f));
-        skeletalAnimShader.setMat4("model", model);
-        robot.Draw(skeletalAnimShader);
+    for (const auto &enemy : enemies) {
+      glm::mat4 model(1.0f);
+      
+      // Elevate Ballom a bit more (0.5f) than Onil (0.4f)
+      float yOffset = (enemy.getType() == EnemyType::BALLOM) ? 0.55f : 0.4f;
+      glm::vec3 drawPosition = enemy.getPosition() + glm::vec3(0.0f, yOffset, 0.0f);
+      
+      model = glm::translate(model, drawPosition) *
+              glm::toMat4(enemy.getOrientation());
+      
+      // Adjust scale as needed for the imported models
+      model = glm::scale(model, glm::vec3(0.4f, 0.4f, 0.4f)); 
+      
+      // Fix predefined model orientation (y -90)
+      model = glm::rotate(model, glm::radians(-90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+      
+      skeletalAnimShader.setMat4("model", model);
+      if (enemy.getType() == EnemyType::BALLOM) {
+        ballomModel.Draw(skeletalAnimShader);
+      } else {
+        onilModel.Draw(skeletalAnimShader);
+      }
     }
+
     glBindVertexArray(0);
 
     // Swap the screen buffers
@@ -581,20 +560,14 @@ void DrawBomb(Bomb& bomb, Map& map, GLfloat currentTime, Shader& lightingShader)
     }
 }
 
-void DrawFire(Bomb& bomb, Map& map, glm::vec3 player_position, GLfloat currentTime, Shader& lightingShader, bool& isDead, GLfloat& timeOfDeath, Animator& animator, Animation& deathAnimation) {
+void DrawFire(Bomb& bomb, Map& map, glm::vec3 player_position, GLfloat currentTime, Shader& lightingShader) {
 
     if (bomb.isFireActive() == true) // If the bomb already exploded
     {
       glm::vec3 bombPosition = bomb.getBombPosition();
       MapIndices grid_position = map.toMapIndices(bombPosition);
 
-      //bomb.checkCollision(player_position, map);
-      // Si el robot toca el fuego y no está muerto aún
-      if (!isDead && bomb.checkCollision(player_position, map)) {
-          isDead = true;
-          timeOfDeath = currentTime;
-          animator.PlayAnimation(&deathAnimation);
-      }
+      bomb.checkCollision(player_position, map);
 
       if (currentTime >= bomb.getFireExpiration()) { // If the bomb explodes
         bomb.putOutFire(grid_position, map);
@@ -657,9 +630,7 @@ void DrawSideFlames(glm::vec3 bombPosition, Map& map, Shader& lightingShader) {
 }
 
 // Moves/alters the camera positions based on user input
-void DoMovement(Player& bomberman, Map& map, Bomb& bomb, Animator& animator,
-    Animation& idleAnimation, Animation& walkAnimation, bool isDead) {
-    
+void DoMovement(Player& bomberman, Map& map, Bomb& bomb) {
   // Camera controls
   if (currentCameraMode == MODE_FREE) {
     if (keys[GLFW_KEY_UP]) {
@@ -678,63 +649,45 @@ void DoMovement(Player& bomberman, Map& map, Bomb& bomb, Animator& animator,
       camera.ProcessKeyboard(RIGHT, deltaTime);
     }
   }
-  if (isDead) return;
-  bool isMoving = false;
+
   // Player controls
   if (currentCameraMode == MODE_FREE) {
     if (keys[GLFW_KEY_W]) {
       bomberman.ProcessKeyboard(NORTH, deltaTime, map);
-      isMoving = true;
     }
 
     if (keys[GLFW_KEY_S]) {
       bomberman.ProcessKeyboard(SOUTH, deltaTime, map);
-      isMoving = true;
     }
 
     if (keys[GLFW_KEY_A]) {
       bomberman.ProcessKeyboard(WEST, deltaTime, map);
-      isMoving = true;
     }
 
     if (keys[GLFW_KEY_D]) {
       bomberman.ProcessKeyboard(EAST, deltaTime, map);
-      isMoving = true;
     }
   } else if (currentCameraMode == MODE_FIRST_PERSON) {
     if (keys[GLFW_KEY_W]) {
       bomberman.ProcessKeyboardFPS(NORTH, camera.GetFront(), camera.GetRight(),
                                    deltaTime, map);
-      isMoving = true;
     }
 
     if (keys[GLFW_KEY_S]) {
       bomberman.ProcessKeyboardFPS(SOUTH, camera.GetFront(), camera.GetRight(),
                                    deltaTime, map);
-      isMoving = true;
     }
 
     if (keys[GLFW_KEY_A]) {
       bomberman.ProcessKeyboardFPS(WEST, camera.GetFront(), camera.GetRight(),
                                    deltaTime, map);
-      isMoving = true;
     }
 
     if (keys[GLFW_KEY_D]) {
       bomberman.ProcessKeyboardFPS(EAST, camera.GetFront(), camera.GetRight(),
                                    deltaTime, map);
-      isMoving = true;
     }
   }
-  if (isMoving && !wasMoving) {
-      animator.PlayAnimation(&walkAnimation);
-      wasMoving = true;
-  }
-  else if (!isMoving && wasMoving) {
-      animator.PlayAnimation(&idleAnimation);
-      wasMoving = false;
-  }
-
 
   // Place bomb
   bool can_place_bomb = bomb.getBombState() == false && bomb.isFireActive() == false;
