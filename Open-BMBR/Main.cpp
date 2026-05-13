@@ -201,7 +201,9 @@ int main() {
   // MODEL LOADING
   Model robot("Models/Robot.gltf");
   Model ballomModel("Models/Ballom.obj");
-  Model onilModel("Models/Onil.obj");
+  Model onilCuerpoModel("Models/onil_cuerpo.obj");
+  Model onilPieIzqModel("Models/onil_pie_izquierdo.obj");
+  Model onilPieDerModel("Models/onil_pie_derecho.obj");
 
   // First, set the container's VAO (and VBO)
   GLuint VBO, VAO;
@@ -356,16 +358,26 @@ int main() {
     for (const auto &enemy : enemies) {
       glm::mat4 model(1.0f);
       
-      float inflationSpeed = 2.0f;
-      float inflationIntensity = 0.05f;
+      float finalScale = 0.4f;
+      float yOffset = 0.0f;
 
-      // La escala base oscila con el tiempo (animacion de respiracion) salvo que este muriendo
-      float baseScale = enemy.getIsDead() ? enemy.getDeathScale() : (0.4f + sin(currentFrame * inflationSpeed) * inflationIntensity);
-
-      float finalScale = baseScale;
-
-      // Elevate Ballom a bit more than Onil
-      float yOffset = (enemy.getType() == EnemyType::BALLOM) ? 0.55f : 0.4f;
+      if (enemy.getType() == EnemyType::BALLOM) {
+          // Ballom: Animacion de inflarse/desinflarse y pequeños saltos (bobbing) de flote
+          float inflationSpeed = 2.0f;
+          float inflationIntensity = 0.05f;
+          finalScale = enemy.getIsDead() ? enemy.getDeathScale() : (0.4f + sin(currentFrame * inflationSpeed) * inflationIntensity);
+          
+          float bobbingSpeed = 2.0f; 
+          float bobbingIntensity = 0.15f;
+          // El globo flota/salta constantemente a menos que muera
+          float bobbing = enemy.getIsDead() ? 0.0f : abs(sin(currentFrame * bobbingSpeed)) * bobbingIntensity;
+          
+          yOffset = 0.55f + bobbing;
+      } else {
+          // Onil: Escala constante y altura fija
+          finalScale = enemy.getIsDead() ? enemy.getDeathScale() : 0.4f;
+          yOffset = 0.3f;
+      }
        
       glm::vec3 drawPosition = enemy.getPosition() + glm::vec3(0.0f, yOffset, 0.0f);
       
@@ -381,7 +393,28 @@ int main() {
       if (enemy.getType() == EnemyType::BALLOM) {
         ballomModel.Draw(skeletalAnimShader);
       } else {
-        onilModel.Draw(skeletalAnimShader);
+        // Dibujar el cuerpo
+        onilCuerpoModel.Draw(skeletalAnimShader);
+
+        // Calcular la oscilacion de los pies
+        float swingAngle = 0.0f;
+        if (enemy.getIsMoving() && !enemy.getIsDead()) {
+            float walkSpeed = 6.0f;
+            float walkIntensity = 0.5f; // en radianes
+            swingAngle = sin(currentFrame * walkSpeed) * walkIntensity;
+        }
+
+        // Pie Izquierdo
+        glm::mat4 leftFootModel = model;
+        leftFootModel = glm::rotate(leftFootModel, swingAngle, glm::vec3(0.0f, 0.0f, 1.0f));
+        skeletalAnimShader.setMat4("model", leftFootModel);
+        onilPieIzqModel.Draw(skeletalAnimShader);
+
+        // Pie Derecho (fase opuesta, multiplicamos por -1)
+        glm::mat4 rightFootModel = model;
+        rightFootModel = glm::rotate(rightFootModel, -swingAngle, glm::vec3(0.0f, 0.0f, 1.0f));
+        skeletalAnimShader.setMat4("model", rightFootModel);
+        onilPieDerModel.Draw(skeletalAnimShader);
       }
     }
 

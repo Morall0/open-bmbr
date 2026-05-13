@@ -22,6 +22,7 @@ public:
     EnemyType getType() const;
     bool getIsDead() const;
     float getDeathScale() const;
+    bool getIsMoving() const;
 
     static std::vector<Enemy> SpawnEnemies(const Map& map, int minEnemies, int maxEnemies);
 
