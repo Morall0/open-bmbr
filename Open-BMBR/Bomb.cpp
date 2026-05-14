@@ -66,7 +66,6 @@ bool Bomb::checkCollision(glm::vec3 player_position, const Map& map) {
   int cell = map.getCell(player_grid_pos.row, player_grid_pos.col);
 
   if (cell == 6) {
-    std::cout << "GAME OVER" << std::endl;
     return true;
   }
 

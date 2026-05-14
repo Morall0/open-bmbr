@@ -65,7 +65,7 @@ struct AnimationsSet {
 // Function prototypes
 void KeyCallback(GLFWwindow *window, int key, int scancode, int action, int mode);
 void MouseCallback(GLFWwindow *window, double xPos, double yPos);
-void DoMovement(Player& bomberman, Map& map, Bomb& bomb, Animator& animator, AnimationsSet& animations);
+void DoMovement(Player& bomberman, Map& map, std::vector<Enemy>& enemies, Bomb& bomb, Animator& animator, AnimationsSet& animations);
 
 // Texture functions
 GLuint LoadTexture2D(const char *path);
@@ -80,10 +80,13 @@ void DrawMapBlocks(const Map& map, Shader& lightingShader, const MapMaterials& m
 
 // Bomb Draw Function
 void DrawBomb(Bomb& bomb, Map& map, GLfloat currentTime, Shader& lightingShader, Model& bombModel, Shader& modelLoadingShader);
-void DrawFire(Bomb& bomb, Map& map, glm::vec3 player_position, GLfloat currentTime, Shader& lightingShader);
+void DrawFire(Bomb& bomb, Map& map, GLfloat currentTime, Shader& lightingShader);
 void DrawSideFlames(glm::vec3 bombPosition, Map& map, Shader& lightingShader);
 
 void SelectAnimation(Animator& animator, AnimationsSet& animations);
+
+// Function to reset the game
+void restart(Player& bomberman, Map& map, std::vector<Enemy>& enemies);
 
 // Window dimensions
 const GLuint WIDTH = 800, HEIGHT = 600;
@@ -106,6 +109,7 @@ const float half_rows = (ROWS + 1) / 2.0f;
 const float half_cols = (COLS + 1) / 2.0f;
 
 bool moving = false;
+bool playerIsAlive = true;
 
 float vertices[] = {
   // Vertex coords     // Normal cords      // Texcoords 
@@ -320,10 +324,12 @@ int main() {
     // Check if any events have been activated (key pressed, mouse moved etc.)
     // and call corresponding response functions
     glfwPollEvents();
-    DoMovement(bomberman, map, bomb, animator, animations);
+    DoMovement(bomberman, map, enemies, bomb, animator, animations);
+
+    glm::vec3 player_position = bomberman.getPosition();
 
     for (auto it = enemies.begin(); it != enemies.end(); ) {
-      it->Update(deltaTime, map, bomberman.getPosition());
+      it->Update(deltaTime, map, player_position);
       // Eliminar del vector solo cuando la animacion de muerte termino (escala = 0)
       if (it->getIsDead() && it->getDeathScale() <= 0.0f) {
         it = enemies.erase(it);
@@ -342,9 +348,9 @@ int main() {
     lightingShader.use();
 
     if (currentCameraMode == MODE_FIRST_PERSON) {
-      camera.setPosition(bomberman.getPosition() + glm::vec3(0.0f, 0.8f, 0.0f));
+      camera.setPosition(player_position + glm::vec3(0.0f, 0.8f, 0.0f));
     } else if (currentCameraMode == MODE_SIDE_SCROLL) {
-      camera.UpdateSideScrollPosition(bomberman.getPosition());
+      camera.UpdateSideScrollPosition(player_position);
     }
 
     // CAMERA ------
@@ -361,7 +367,14 @@ int main() {
     ApplyTexture(bomb_mat, lightingShader);
     DrawBomb(bomb, map, currentFrame, lightingShader, bombModel, modelLoadingShader);
     ApplyTexture(fire_mat, lightingShader);
-    DrawFire(bomb, map, bomberman.getPosition(), currentFrame, lightingShader);
+    DrawFire(bomb, map, currentFrame, lightingShader);
+
+    // Check if the player dies
+    if (bomb.isFireActive() && bomb.checkCollision(player_position, map) && playerIsAlive) {
+      playerIsAlive = false;
+      animator.PlayAnimation(&animations.deadAnim, false);
+    }
+
 
     // ROBOT ------
     skeletalAnimShader.use();
@@ -377,7 +390,7 @@ int main() {
 
     if (currentCameraMode != MODE_FIRST_PERSON) {
       glm::mat4 model(1.0f);
-      model = glm::translate(model, bomberman.getPosition()) *
+      model = glm::translate(model, player_position) *
               glm::toMat4(bomberman.getOrientation());
       model = glm::scale(model, glm::vec3(0.3f, 0.3f, 0.3f));
       skeletalAnimShader.setMat4("model", model);
@@ -653,16 +666,14 @@ void DrawBomb(Bomb& bomb, Map& map, GLfloat currentTime, Shader& lightingShader,
     }
 }
 
-void DrawFire(Bomb& bomb, Map& map, glm::vec3 player_position, GLfloat currentTime, Shader& lightingShader) {
+void DrawFire(Bomb& bomb, Map& map, GLfloat currentTime, Shader& lightingShader) {
 
     if (bomb.isFireActive() == true) // If the bomb already exploded
     {
       glm::vec3 bombPosition = bomb.getBombPosition();
       MapIndices grid_position = map.toMapIndices(bombPosition);
 
-      bomb.checkCollision(player_position, map);
-
-      if (currentTime >= bomb.getFireExpiration()) { // If the bomb explodes
+      if (currentTime >= bomb.getFireExpiration()) { // Fire end
         bomb.putOutFire(grid_position, map);
       }
 
@@ -723,7 +734,15 @@ void DrawSideFlames(glm::vec3 bombPosition, Map& map, Shader& lightingShader) {
 }
 
 // Moves/alters the camera positions based on user input
-void DoMovement(Player& bomberman, Map& map, Bomb& bomb, Animator& animator, AnimationsSet& animations) {
+void DoMovement(Player& bomberman, Map& map, std::vector<Enemy>& enemies, Bomb& bomb, Animator& animator, AnimationsSet& animations) {
+  if (!playerIsAlive) { // Cant move if player dies
+    // Restart when player dies
+    if (keys[GLFW_KEY_R])
+      restart(bomberman, map, enemies);
+    else // Movement not allowed
+      return;
+  }
+
   // Camera controls
   if (currentCameraMode == MODE_FREE) {
     if (keys[GLFW_KEY_UP]) {
@@ -803,14 +822,11 @@ void DoMovement(Player& bomberman, Map& map, Bomb& bomb, Animator& animator, Ani
 void SelectAnimation(Animator& animator, AnimationsSet& animations) {
   if(!animator.IsLooping())
   {
-    if(!animator.IsFinished())
+    if(!animator.IsFinished() || !playerIsAlive)
       return;
     else
     {
-      animator.PlayAnimation(
-          &animations.idleAnim,
-          true
-          );
+      animator.PlayAnimation(&animations.idleAnim, true);
     }
   }
   if (moving)
@@ -827,6 +843,19 @@ void SelectAnimation(Animator& animator, AnimationsSet& animations) {
       animator.PlayAnimation(&animations.idleAnim, true);
     }
   }
+}
+
+void restart(Player& bomberman, Map& map, std::vector<Enemy>& enemies) {
+  // Regen map
+  map.genMap();
+  map.genHidden();
+  // Restart enemies
+  enemies.clear();
+  enemies = Enemy::SpawnEnemies(map, 6, 8);
+
+  // Reset the player
+  playerIsAlive = true;
+  bomberman.resetTo(glm::vec3(-half_cols + 1, -0.49f, -half_rows + 1), glm::vec3(0.0f, 0.0f, 1.0f));
 }
 
 // Is called whenever a key is pressed/released via GLFW

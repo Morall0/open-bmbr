@@ -23,6 +23,7 @@ public:
                           glm::vec3 cameraRight, GLfloat deltaTime,
                           const Map &map);
   bool CheckCollision(glm::vec3 newPos, const Map &map);
+  void resetTo(glm::vec3 pos, glm::vec3 dir);
 
 private:
   // Player Attibutes

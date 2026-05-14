@@ -190,3 +190,9 @@ bool Player::CheckCollision(glm::vec3 newPos, const Map& map)
 
   return false;
 }
+
+void Player::resetTo(glm::vec3 pos, glm::vec3 dir) {
+  dir = glm::normalize(dir);
+  position = pos;
+  orientation = glm::rotation(glm::vec3(0,0,1), dir);
+}
