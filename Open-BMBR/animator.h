@@ -71,7 +71,7 @@ public:
 		auto boneInfoMap = m_CurrentAnimation->GetBoneIDMap();
 		if (boneInfoMap.find(nodeName) != boneInfoMap.end())
 		{
-			int index = boneInfoMap[nodeName].id;
+			long unsigned int index = boneInfoMap[nodeName].id;
 			glm::mat4 offset = boneInfoMap[nodeName].offset;
 			if (index < m_FinalBoneMatrices.size())
 				m_FinalBoneMatrices[index] = globalTransformation * offset;

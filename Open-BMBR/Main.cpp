@@ -277,9 +277,24 @@ int main() {
 
   // Dir light properties
   lightingShader.setVec3("dirLight.direction", -0.2f, -1.0f, -0.3f);
-  lightingShader.setVec3("dirLight.ambient", 0.3f, 0.3f, 0.3f);
-  lightingShader.setVec3("dirLight.diffuse", 0.3f, 0.3f, 0.3f);
-  lightingShader.setVec3("dirLight.specular", 0.0f, 0.0f, 0.0f);
+  lightingShader.setVec3("dirLight.ambient",   0.3f, 0.3f, 0.3f);
+  lightingShader.setVec3("dirLight.diffuse",   0.5f, 0.5f, 0.5f);
+  lightingShader.setVec3("dirLight.specular",  0.0f, 0.0f, 0.0f);
+
+  // Apply the same directional light to the skeletal and model-loading shaders
+  skeletalAnimShader.use();
+  skeletalAnimShader.setVec3("dirLight.direction", -0.2f, -1.0f, -0.3f);
+  skeletalAnimShader.setVec3("dirLight.ambient",   0.3f, 0.3f, 0.3f);
+  skeletalAnimShader.setVec3("dirLight.diffuse",   0.5f, 0.5f, 0.5f);
+  skeletalAnimShader.setVec3("dirLight.specular",  0.8f, 0.8f, 0.8f);
+
+  modelLoadingShader.use();
+  modelLoadingShader.setVec3("dirLight.direction", -0.2f, -1.0f, -0.3f);
+  modelLoadingShader.setVec3("dirLight.ambient",   0.3f, 0.3f, 0.3f);
+  modelLoadingShader.setVec3("dirLight.diffuse",   0.5f, 0.5f, 0.5f);
+  modelLoadingShader.setVec3("dirLight.specular",  0.8f, 0.8f, 0.8f);
+
+  lightingShader.use(); // restore active shader
 
   // Initialize random seed
   srand(static_cast<unsigned int>(time(NULL)));
@@ -455,6 +470,19 @@ int main() {
       skeletalAnimShader.setVec3("fireLight.specular",  1.0f,  0.5f,  0.0f);
     }
 
+    // Bomb point light (illuminates the robot and while the bomb is ticking)
+    skeletalAnimShader.setBool("bombLightActive", bombActive);
+    if (bombActive) {
+      glm::vec3 bpos = bomb.getBombPosition() + glm::vec3(0.0f, 0.5f, 0.0f);
+      skeletalAnimShader.setVec3("bombLight.position",  bpos);
+      skeletalAnimShader.setFloat("bombLight.constant",  1.0f);
+      skeletalAnimShader.setFloat("bombLight.linear",    0.35f);
+      skeletalAnimShader.setFloat("bombLight.quadratic", 0.44f);
+      skeletalAnimShader.setVec3("bombLight.ambient",  bombLightIntensity * 0.3f, bombLightIntensity * 0.15f, 0.0f);
+      skeletalAnimShader.setVec3("bombLight.diffuse",  bombLightIntensity * 1.0f, bombLightIntensity * 0.5f,  0.0f);
+      skeletalAnimShader.setVec3("bombLight.specular", bombLightIntensity * 0.5f, bombLightIntensity * 0.25f, 0.0f);
+    }
+
     // Send bones matrices
     auto transforms = animator.GetFinalBoneMatrices();
     for (size_t i = 0; i < transforms.size(); ++i)
@@ -466,7 +494,8 @@ int main() {
               glm::toMat4(bomberman.getOrientation());
       model = glm::scale(model, glm::vec3(0.3f, 0.3f, 0.3f));
       skeletalAnimShader.setMat4("model", model);
-      skeletalAnimShader.setInt("isFireModel", 0); // robot = no fire lighting
+      skeletalAnimShader.setInt("isFireModel", 0);
+      skeletalAnimShader.setFloat("shininess", 96.0f); // metal robot
       robot.Draw(skeletalAnimShader);
     }
 
@@ -485,6 +514,7 @@ int main() {
     modelLoadingShader.setMat4("projection", projection);
     modelLoadingShader.setVec3("viewPos", camera.GetPosition());
     modelLoadingShader.setBool("bombLightActive", bombActive);
+
     if (bombActive) {
       glm::vec3 bpos = bomb.getBombPosition() + glm::vec3(0.0f, 0.5f, 0.0f);
       modelLoadingShader.setVec3("bombLight.position", bpos);
@@ -516,19 +546,19 @@ int main() {
       float yOffset = 0.0f;
 
       if (enemy.getType() == EnemyType::BALLOM) {
-          // Ballom: Animacion de inflarse/desinflarse y pequeños saltos (bobbing) de flote
+          // Ballom breathing and up/down translation animation
           float inflationSpeed = 2.0f;
           float inflationIntensity = 0.05f;
           finalScale = enemy.getIsDead() ? enemy.getDeathScale() : (0.4f + sin(currentFrame * inflationSpeed) * inflationIntensity);
           
           float bobbingSpeed = 2.0f; 
           float bobbingIntensity = 0.15f;
-          // El globo flota/salta constantemente a menos que muera
+          // Death animation
           float bobbing = enemy.getIsDead() ? 0.0f : abs(sin(currentFrame * bobbingSpeed)) * bobbingIntensity;
           
           yOffset = 0.55f + bobbing;
       } else {
-          // Onil: Escala constante y altura fija
+          // Onil
           finalScale = enemy.getIsDead() ? enemy.getDeathScale() : 0.4f;
           yOffset = 0.3f;
       }
@@ -545,8 +575,10 @@ int main() {
       
       modelLoadingShader.setMat4("model", model);
       if (enemy.getType() == EnemyType::BALLOM) {
+        modelLoadingShader.setFloat("shininess", 64.0f); // latex/balloon — glossy
         ballomModel.Draw(modelLoadingShader);
       } else {
+        modelLoadingShader.setFloat("shininess", 8.0f);  // Onil — matte
         // Dibujar el cuerpo
         onilCuerpoModel.Draw(modelLoadingShader);
 
@@ -785,7 +817,7 @@ void DrawFire(Bomb& bomb, Map& map, GLfloat currentTime, Model& fireModel, Shade
       glm::vec3 center = firePosition + glm::vec3(0.0f, 0.45f, 0.0f); // elevated gradient center
       skeletalAnimShader.setInt("isFireModel", 1);
 
-      // --- Center flame (uniform scale) ---
+      // Center flame
       glm::mat4 model(1.0f);
       model = glm::translate(model, firePosition);
       model = glm::scale(model, glm::vec3(0.04f, 0.04f, 0.04f));
