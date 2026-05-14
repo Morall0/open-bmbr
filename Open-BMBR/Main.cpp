@@ -402,10 +402,24 @@ int main() {
     ApplyTexture(fire_mat, lightingShader);
     DrawFire(bomb, map, currentFrame, lightingShader);
 
-    // Check if the player dies
+    // Check if the player dies from fire
     if (bomb.isFireActive() && bomb.checkCollision(player_position, map) && playerIsAlive) {
       playerIsAlive = false;
       animator.PlayAnimation(&animations.deadAnim, false);
+    }
+
+    // Check if the player dies from an enemy
+    if (playerIsAlive) {
+      for (const auto& enemy : enemies) {
+        if (!enemy.getIsDead()) {
+          float dist = glm::length(enemy.getPosition() - player_position);
+          if (dist < 0.65f) {
+            playerIsAlive = false;
+            animator.PlayAnimation(&animations.deadAnim, false);
+            break;
+          }
+        }
+      }
     }
 
 
