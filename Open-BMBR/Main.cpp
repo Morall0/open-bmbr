@@ -57,6 +57,7 @@ struct MapMaterials {
 };
 
 struct AnimationsSet {
+  Animation winAnim;
   Animation idleAnim;
   Animation walkingAnim;
   Animation deadAnim;
@@ -90,7 +91,7 @@ void SelectAnimation(Animator& animator, AnimationsSet& animations);
 void restart(Player& bomberman, Map& map, std::vector<Enemy>& enemies);
 
 // Window dimensions
-const GLuint WIDTH = 800, HEIGHT = 600;
+const GLuint WIDTH = 1200, HEIGHT = 800;
 int SCREEN_WIDTH, SCREEN_HEIGHT;
 
 // Camera
@@ -222,6 +223,7 @@ int main() {
   Model robot("Models/Robot.gltf");
 
   AnimationsSet animations = {
+    Animation("Models/Robot.gltf", &robot, 0),
     Animation("Models/Robot.gltf", &robot, 2),
     Animation("Models/Robot.gltf", &robot, 10),
     Animation("Models/Robot.gltf", &robot, 1),
@@ -319,7 +321,7 @@ int main() {
   map.printMap(); // Used to print map to console for debugging
 
   // Spawning enemies
-  std::vector<Enemy> enemies = Enemy::SpawnEnemies(map, 1, 2);
+  std::vector<Enemy> enemies = Enemy::SpawnEnemies(map, 3, 5);
 
   // Set map assets for drawing
   MapMaterials map_materials;
@@ -462,7 +464,7 @@ int main() {
           std::cout << "     Press 'R' to play again         " << std::endl;
           std::cout << "=====================================\n" << std::endl;
           playerWon = true;
-          animator.PlayAnimation(&animations.idleAnim, true);
+          animator.PlayAnimation(&animations.winAnim, true);
         }
       }
     }
@@ -1034,9 +1036,13 @@ void DoMovement(Player& bomberman, Map& map, std::vector<Enemy>& enemies, Bomb& 
   // Place bomb
   bool can_place_bomb = bomb.getBombState() == false && bomb.isFireActive() == false;
   if (keys[GLFW_KEY_SPACE] && can_place_bomb) {
-    bomb.activateBomb(bomberman.getPosition(), glfwGetTime(), map);
-    bomberman.setCanPassBomb(true);
-    animator.PlayAnimation(&animations.punchAnim, false);
+    MapIndices p_idx = map.toMapIndices(bomberman.getPosition());
+    int cell = map.getCell(p_idx.row, p_idx.col);
+    if (cell != 7 && cell != 8) { // Do not overwrite door or powerups
+      bomb.activateBomb(bomberman.getPosition(), glfwGetTime(), map);
+      bomberman.setCanPassBomb(true);
+      animator.PlayAnimation(&animations.punchAnim, false);
+    }
   }
 }
 

@@ -5,7 +5,7 @@
 #include <utility>
 
 // Probability of a block to be destructible
-const int destructibleProb = 60;
+const int destructibleProb = 50;
 
 // Constructor
 Map::Map(int rows, int cols)
