@@ -171,7 +171,7 @@ int main() {
       glfwCreateWindow(WIDTH, HEIGHT, "Open-BMBR", nullptr, nullptr);
 
   if (nullptr == window) {
-    std::cout << "AFailed to create GLFW window" << std::endl;
+    std::cout << "Failed to create GLFW window" << std::endl;
     glfwTerminate();
 
     return EXIT_FAILURE;

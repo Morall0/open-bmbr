@@ -20,25 +20,37 @@ out vec2 TexCoords;
 
 void main()
 {
-    vec4 totalPosition = vec4(0.0f);
-    for(int i = 0 ; i < MAX_BONE_INFLUENCE ; i++)
-    {
-        if(boneIds[i] == -1) 
-            continue;
-        if(boneIds[i] >=MAX_BONES) 
-        {
-            totalPosition = vec4(pos,1.0f);
-            break;
-        }
-        vec4 localPosition = finalBonesMatrices[boneIds[i]] * vec4(pos,1.0f);
-        totalPosition += localPosition * weights[i];
-        vec3 localNormal = mat3(finalBonesMatrices[boneIds[i]]) * norm;
-   }
+  vec4 totalPosition = vec4(0.0f);
+  float totalWeight = 0.0f;
 
-    if (length(totalPosition) < 0.0001)
-      totalPosition = vec4(pos, 1.0f);
-	
-    mat4 viewModel = view * model;
-    gl_Position =  projection * viewModel * totalPosition;
-	TexCoords = tex;
+  for(int i = 0; i < MAX_BONE_INFLUENCE; i++)
+  {
+    if(boneIds[i] == -1)
+      continue;
+
+    if(weights[i] < 0.0001)
+      continue;
+
+    if(boneIds[i] >= MAX_BONES)
+    {
+      continue;
+    }
+
+    vec4 localPosition = finalBonesMatrices[boneIds[i]] * vec4(pos, 1.0f);
+    totalPosition += localPosition * weights[i];
+    totalWeight += weights[i];
+  }
+
+  if(totalWeight < 0.0001)
+  {
+    totalPosition = vec4(pos, 1.0f);
+  }
+  else
+  {
+    totalPosition = totalPosition / totalWeight;
+    totalPosition.w = 1.0f;
+  }
+
+  gl_Position = projection * view * model * totalPosition;
+  TexCoords = tex;
 }

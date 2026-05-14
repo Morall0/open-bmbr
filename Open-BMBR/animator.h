@@ -42,7 +42,7 @@ public:
         }
       }
       CalculateBoneTransform(&m_CurrentAnimation->GetRootNode(),
-          m_CurrentAnimation->GetGlobalInverseTransform());
+                             glm::mat4(1.0f));
     }
   }
 
@@ -107,5 +107,4 @@ private:
 	float m_CurrentTime;
 	float m_DeltaTime;
   bool m_Looping = true;
-
 };
