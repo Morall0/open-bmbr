@@ -135,9 +135,21 @@ public:
 		return this->right;
 	}
 
+	GLfloat getYaw()
+	{
+		return this->yaw;
+	}
+
 	void setPosition(glm::vec3 pos)
 	{
 		this->position = pos;
+	}
+
+	void setYawPitch(GLfloat newYaw, GLfloat newPitch)
+	{
+		this->yaw = newYaw;
+		this->pitch = newPitch;
+		this->updateCameraVectors();
 	}
 
 	void UpdateSideScrollPosition(glm::vec3 targetPosition)
