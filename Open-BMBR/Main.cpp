@@ -41,6 +41,7 @@
 struct Material {
   GLuint diffuse;
   GLuint specular;
+  GLuint ao;
 
   float shininess = 16.0f;
 
@@ -254,20 +255,30 @@ int main() {
 
   // Materials and textures
   // Texture loading
-  GLuint ground_texture = LoadTexture2D("images/aerial_rocks_02_diff_1k.png");
-  GLuint ground_specular = LoadTexture2D("images/aerial_rocks_02_rough_1k.png");
-  GLuint wall_texture = LoadTexture2D("images/native_wall_1.png");
+  GLuint ground_diff  = LoadTexture2D("images/ground_diffuse.png");
+  GLuint ground_rough = LoadTexture2D("images/ground_rough.png");
+  GLuint ground_ao    = LoadTexture2D("images/ground_ao.png");
+  // Wall PBR maps
+  GLuint wall_diff    = LoadTexture2D("images/wall_diffuse.png");
+  GLuint wall_rough   = LoadTexture2D("images/wall_rough.png");
+  GLuint wall_ao      = LoadTexture2D("images/wall_diffuse.png");
+  // Fallback white AO (AO = 1.0, sin efecto) para materiales sin mapa AO
+  GLuint white_ao     = CreateSolidTexture(255, 255, 255, 255);
   // Texture creation
-  GLuint brick_texture = CreateSolidTexture(64, 64, 64, 255); // Dark gray for destructible bricks
-  GLuint bomb_texture = CreateSolidTexture(255, 255, 255, 255); // Black texture for bombs
-  GLuint fire_texture = CreateSolidTexture(255, 255, 0, 255); // Yellow texture for fire
+  // Brick PBR maps
+  GLuint brick_diff  = LoadTexture2D("images/brick_diffuse.png"); // Destructible brick texture
+  GLuint brick_rough = LoadTexture2D("images/brick_rough.png");
+  GLuint brick_ao    = LoadTexture2D("images/brick_ao.png");
+  GLuint bomb_texture  = CreateSolidTexture(255, 255, 255, 255);
+  GLuint fire_texture  = CreateSolidTexture(255, 255, 0,   255);
 
   // Material
-  Material ground_mat = {ground_texture, ground_specular, 16.0f, 10.33f, 4.33f};
-  Material wall_mat = {wall_texture, 0, 16.0f};
-  Material brick_mat = {brick_texture, 0, 16.0f};
-  Material bomb_mat = {bomb_texture, 0, 16.0f};
-  Material fire_mat = {fire_texture, 0, 16.0f};
+  // wall_rough se usa como specular: superficies poco rugosas = más especular
+  Material ground_mat = {ground_diff,    ground_rough, ground_ao, 16.0f, 29.0f,  11.0f};
+  Material wall_mat   = {wall_diff,      wall_rough,  wall_ao,  64.0f, 0.5f,  0.5f};
+  Material brick_mat  = {brick_diff,     brick_rough, brick_ao, 16.0f, 0.5f,  0.5f};
+  Material bomb_mat   = {bomb_texture,   white_ao,   white_ao, 16.0f};
+  Material fire_mat   = {fire_texture,   white_ao,   white_ao, 16.0f};
 
   // Configuring lightingShader
   lightingShader.use();
@@ -275,6 +286,7 @@ int main() {
   // Material properties
   lightingShader.setInt("material.diffuse", 0);
   lightingShader.setInt("material.specular", 1);
+  lightingShader.setInt("material.ao", 2);
 
   // Dir light properties
   lightingShader.setVec3("dirLight.direction", -0.2f, -1.0f, -0.3f);
@@ -608,6 +620,10 @@ void ApplyTexture(const Material& material, Shader& lightingShader) {
       // Bind specular map
       glActiveTexture(GL_TEXTURE1);
       glBindTexture(GL_TEXTURE_2D, material.specular);
+
+      // Bind AO map
+      glActiveTexture(GL_TEXTURE2);
+      glBindTexture(GL_TEXTURE_2D, material.ao);
 
       lightingShader.setFloat("material.shininess", material.shininess);
       lightingShader.setVec2("uvScale", material.uvScaleX, material.uvScaleY);
