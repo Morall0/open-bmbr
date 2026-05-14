@@ -41,6 +41,7 @@
 struct Material {
   GLuint diffuse;
   GLuint specular;
+  GLuint ao;
 
   float shininess = 16.0f;
 
@@ -257,16 +258,23 @@ int main() {
 
   // Materials and textures
   // Texture loading
-  GLuint ground_texture = LoadTexture2D("images/aerial_rocks_02_diff_1k.png");
-  GLuint ground_specular = LoadTexture2D("images/aerial_rocks_02_rough_1k.png");
-  GLuint wall_texture = LoadTexture2D("images/native_wall_1.png");
-  // Texture creation
-  GLuint brick_texture = CreateSolidTexture(64, 64, 64, 255); // Dark gray for destructible bricks
+  GLuint ground_diff  = LoadTexture2D("images/ground_diffuse.png");
+  GLuint ground_rough = LoadTexture2D("images/ground_rough.png");
+  GLuint ground_ao    = LoadTexture2D("images/ground_ao.png");
+  // Wall PBR maps
+  GLuint wall_diff    = LoadTexture2D("images/wall_diffuse.png");
+  GLuint wall_rough   = LoadTexture2D("images/wall_rough.png");
+  GLuint wall_ao      = LoadTexture2D("images/wall_diffuse.png");
+  // Brick PBR maps
+  GLuint brick_diff  = LoadTexture2D("images/brick_diffuse.png"); // Destructible brick texture
+  GLuint brick_rough = LoadTexture2D("images/brick_rough.png");
+  GLuint brick_ao    = LoadTexture2D("images/brick_ao.png");
 
   // Material
-  Material ground_mat = {ground_texture, ground_specular, 16.0f, 10.33f, 4.33f};
-  Material wall_mat = {wall_texture, 0, 16.0f};
-  Material brick_mat = {brick_texture, 0, 16.0f};
+  // wall_rough se usa como specular: superficies poco rugosas = más especular
+  Material ground_mat = {ground_diff,    ground_rough, ground_ao, 16.0f, 29.0f,  11.0f};
+  Material wall_mat   = {wall_diff,      wall_rough,  wall_ao,  64.0f, 0.5f,  0.5f};
+  Material brick_mat  = {brick_diff,     brick_rough, brick_ao, 16.0f, 0.5f,  0.5f};
 
   // Configuring lightingShader
   lightingShader.use();
@@ -274,6 +282,7 @@ int main() {
   // Material properties
   lightingShader.setInt("material.diffuse", 0);
   lightingShader.setInt("material.specular", 1);
+  lightingShader.setInt("material.ao", 2);
 
   // Dir light properties
   lightingShader.setVec3("dirLight.direction", -0.2f, -1.0f, -0.3f);
@@ -617,45 +626,53 @@ int main() {
 }
 
 GLuint LoadTexture2D(const char *path) {
-  // Load textures
   GLuint texture;
   glGenTextures(1, &texture);
   glBindTexture(GL_TEXTURE_2D, texture);
 
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
-                  GL_LINEAR_MIPMAP_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER,
-                  GL_NEAREST_MIPMAP_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-  // Diffuse map
-  unsigned char *image;
   int textureWidth, textureHeight, nrChannels;
-  image = stbi_load(path, &textureWidth, &textureHeight, &nrChannels, 0);
+
+  // stbi_load always outputs 8-bit (converts 16-bit PNGs automatically).
+  // We request 0 (keep source channels) but stbi normalises to 8-bit output.
+  // For gray+alpha (2-channel) maps we force 1 channel so OpenGL accepts it.
+  unsigned char *image = stbi_load(path, &textureWidth, &textureHeight, &nrChannels, 0);
 
   if (!image) {
     std::cout << "Failed to load texture: " << path << std::endl;
+    glDeleteTextures(1, &texture);
     return 0;
   }
 
-  GLenum format;
-
-  // Chose the right format based on channels
-  if (nrChannels == 1)
-    format = GL_RED;
-  else if (nrChannels == 3)
-    format = GL_RGB;
-  else if (nrChannels == 4)
-    format = GL_RGBA;
-  else {
-    std::cout << "Unsupported channel count for: " << path << std::endl;
+  GLenum internalFormat, dataFormat;
+  if (nrChannels == 1) {
+    internalFormat = GL_R8;
+    dataFormat     = GL_RED;
+  } else if (nrChannels == 2) {
+    // gray+alpha — treat as single-channel (drop alpha) by reloading forced to 1
     stbi_image_free(image);
+    image = stbi_load(path, &textureWidth, &textureHeight, &nrChannels, 1);
+    internalFormat = GL_R8;
+    dataFormat     = GL_RED;
+  } else if (nrChannels == 3) {
+    internalFormat = GL_RGB8;
+    dataFormat     = GL_RGB;
+  } else if (nrChannels == 4) {
+    internalFormat = GL_RGBA8;
+    dataFormat     = GL_RGBA;
+  } else {
+    std::cout << "Unsupported channel count (" << nrChannels << ") for: " << path << std::endl;
+    stbi_image_free(image);
+    glDeleteTextures(1, &texture);
     return 0;
   }
 
-  glTexImage2D(GL_TEXTURE_2D, 0, format, textureWidth, textureHeight, 0, format,
-               GL_UNSIGNED_BYTE, image);
+  glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, textureWidth, textureHeight,
+               0, dataFormat, GL_UNSIGNED_BYTE, image);
   glGenerateMipmap(GL_TEXTURE_2D);
 
   stbi_image_free(image);
@@ -686,6 +703,10 @@ void ApplyTexture(const Material& material, Shader& lightingShader) {
       // Bind specular map
       glActiveTexture(GL_TEXTURE1);
       glBindTexture(GL_TEXTURE_2D, material.specular);
+
+      // Bind AO map
+      glActiveTexture(GL_TEXTURE2);
+      glBindTexture(GL_TEXTURE_2D, material.ao);
 
       lightingShader.setFloat("material.shininess", material.shininess);
       lightingShader.setVec2("uvScale", material.uvScaleX, material.uvScaleY);
@@ -1035,7 +1056,6 @@ void MouseCallback(GLFWwindow *window, double xPos, double yPos) {
     lastY = yPos;
     firstMouse = false;
   }
-
   GLfloat xOffset = xPos - lastX;
   GLfloat yOffset =
       lastY - yPos; // Reversed since y-coordinates go from bottom to left
