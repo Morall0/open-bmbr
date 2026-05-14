@@ -168,8 +168,24 @@ private:
 			{
 				vertex.m_Weights[i] = weight;
 				vertex.m_BoneIDs[i] = boneID;
-				break;
+				return;
 			}
+		}
+
+		// If all slots are full, replace the slot with the smallest weight
+		int minWeightIndex = 0;
+		for (int i = 1; i < MAX_BONE_INFLUENCE; ++i)
+		{
+			if (vertex.m_Weights[i] < vertex.m_Weights[minWeightIndex])
+			{
+				minWeightIndex = i;
+			}
+		}
+
+		if (weight > vertex.m_Weights[minWeightIndex])
+		{
+			vertex.m_Weights[minWeightIndex] = weight;
+			vertex.m_BoneIDs[minWeightIndex] = boneID;
 		}
 	}
 
