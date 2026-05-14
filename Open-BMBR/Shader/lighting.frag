@@ -55,7 +55,8 @@ out vec4 color;
 
 uniform vec3 viewPos;
 uniform DirLight dirLight;
-// uniform PointLight pointLights[NUMBER_OF_POINT_LIGHTS];
+uniform PointLight bombLight;
+uniform bool bombLightActive;
 // uniform SpotLight spotLight;
 uniform Material material;
 uniform int transparency;
@@ -75,11 +76,11 @@ void main( )
     // Directional lighting
     vec3 result = CalcDirLight( dirLight, norm, viewDir );
     
-    // Point lights
-    // for ( int i = 0; i < NUMBER_OF_POINT_LIGHTS; i++ )
-    // {
-    //     result += CalcPointLight( pointLights[i], norm, FragPos, viewDir );
-    // }
+    // Bomb point light
+    if (bombLightActive)
+    {
+        result += CalcPointLight( bombLight, norm, FragPos, viewDir );
+    }
     
     // Spot light
     // result += CalcSpotLight( spotLight, norm, FragPos, viewDir );

@@ -100,7 +100,7 @@ bool keys[1024];
 bool firstMouse = true;
 
 enum CameraMode { MODE_FREE, MODE_FIRST_PERSON, MODE_SIDE_SCROLL };
-CameraMode currentCameraMode = MODE_FREE;
+CameraMode currentCameraMode = MODE_SIDE_SCROLL;
 
 // Map dimensions
 const int ROWS = 11, COLS = 29;
@@ -315,6 +315,7 @@ int main() {
                                           100.0f);
 
   // Game loop
+  CameraMode prevCameraMode = currentCameraMode;
   while (!glfwWindowShouldClose(window)) {
     // Calculate deltatime of current frame
     GLfloat currentFrame = glfwGetTime();
@@ -347,6 +348,19 @@ int main() {
 
     lightingShader.use();
 
+    // Detectar transicion de modo de camara
+    if (currentCameraMode != prevCameraMode) {
+      if (currentCameraMode == MODE_FREE) {
+        // Centrada horizontal y verticalmente mirando hacia abajo
+        camera.setPosition(glm::vec3(0.0f, 18.0f, 0.0f));
+        camera.setYawPitch(-90.0f, -89.0f);
+      } else if (currentCameraMode == MODE_FIRST_PERSON) {
+        // Preservar el yaw actual (la direccion en que mira), forzar pitch=0 (horizonte)
+        camera.setYawPitch(camera.getYaw(), 0.0f);
+      }
+      prevCameraMode = currentCameraMode;
+    }
+
     if (currentCameraMode == MODE_FIRST_PERSON) {
       camera.setPosition(player_position + glm::vec3(0.0f, 0.8f, 0.0f));
     } else if (currentCameraMode == MODE_SIDE_SCROLL) {
@@ -359,6 +373,25 @@ int main() {
     lightingShader.setMat4("projection", projection); // Set projection
     lightingShader.setVec3("viewPos", camera.GetPosition());
     glBindVertexArray(VAO);
+
+    // BOMB POINT LIGHT ------
+    bool bombActive = bomb.getBombState();
+    float bombBlinkScale = sin(currentFrame * 6.0f) * 0.05f;
+    // La intensidad de la luz oscila igual que la escala de la bomba (0.0 a 1.0)
+    float bombLightIntensity = 0.1f + bombBlinkScale * 10.0f; // base 0.5, pico ~1.0
+    bombLightIntensity = glm::clamp(bombLightIntensity, 0.0f, 1.2f);
+
+    lightingShader.setBool("bombLightActive", bombActive);
+    if (bombActive) {
+      glm::vec3 bpos = bomb.getBombPosition() + glm::vec3(0.0f, 0.5f, 0.0f);
+      lightingShader.setVec3("bombLight.position", bpos);
+      lightingShader.setFloat("bombLight.constant",  1.0f);
+      lightingShader.setFloat("bombLight.linear",    0.35f);
+      lightingShader.setFloat("bombLight.quadratic", 0.44f);
+      lightingShader.setVec3("bombLight.ambient",  bombLightIntensity * 0.3f, bombLightIntensity * 0.15f, 0.0f);
+      lightingShader.setVec3("bombLight.diffuse",  bombLightIntensity * 1.0f, bombLightIntensity * 0.5f,  0.0f);
+      lightingShader.setVec3("bombLight.specular", bombLightIntensity * 0.5f, bombLightIntensity * 0.25f, 0.0f);
+    }
 
     // MAP ------
     DrawMap(map, lightingShader, map_materials);
@@ -403,6 +436,18 @@ int main() {
     // Send uniforms
     modelLoadingShader.setMat4("view", view);
     modelLoadingShader.setMat4("projection", projection);
+    modelLoadingShader.setVec3("viewPos", camera.GetPosition());
+    modelLoadingShader.setBool("bombLightActive", bombActive);
+    if (bombActive) {
+      glm::vec3 bpos = bomb.getBombPosition() + glm::vec3(0.0f, 0.5f, 0.0f);
+      modelLoadingShader.setVec3("bombLight.position", bpos);
+      modelLoadingShader.setFloat("bombLight.constant",  1.0f);
+      modelLoadingShader.setFloat("bombLight.linear",    0.35f);
+      modelLoadingShader.setFloat("bombLight.quadratic", 0.44f);
+      modelLoadingShader.setVec3("bombLight.ambient",  bombLightIntensity * 0.3f, bombLightIntensity * 0.15f, 0.0f);
+      modelLoadingShader.setVec3("bombLight.diffuse",  bombLightIntensity * 1.0f, bombLightIntensity * 0.5f,  0.0f);
+      modelLoadingShader.setVec3("bombLight.specular", bombLightIntensity * 0.5f, bombLightIntensity * 0.25f, 0.0f);
+    }
 
     for (const auto &enemy : enemies) {
       glm::mat4 model(1.0f);
@@ -866,9 +911,9 @@ void KeyCallback(GLFWwindow *window, int key, int scancode, int action,
   }
 
   if (key == GLFW_KEY_C && action == GLFW_PRESS) {
-    if (currentCameraMode == MODE_FREE) currentCameraMode = MODE_FIRST_PERSON;
-    else if (currentCameraMode == MODE_FIRST_PERSON) currentCameraMode = MODE_SIDE_SCROLL;
-    else currentCameraMode = MODE_FREE;
+    if (currentCameraMode == MODE_SIDE_SCROLL) currentCameraMode = MODE_FIRST_PERSON;
+    else if (currentCameraMode == MODE_FIRST_PERSON) currentCameraMode = MODE_FREE;
+    else currentCameraMode = MODE_SIDE_SCROLL;
   }
 
   if (key >= 0 && key < 1024) {
