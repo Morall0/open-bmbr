@@ -57,6 +57,8 @@ uniform vec3 viewPos;
 uniform DirLight dirLight;
 uniform PointLight bombLight;
 uniform bool bombLightActive;
+uniform PointLight fireLight;
+uniform bool fireLightActive;
 // uniform SpotLight spotLight;
 uniform Material material;
 uniform int transparency;
@@ -80,6 +82,12 @@ void main( )
     if (bombLightActive)
     {
         result += CalcPointLight( bombLight, norm, FragPos, viewDir );
+    }
+
+    // Fire point light
+    if (fireLightActive)
+    {
+        result += CalcPointLight( fireLight, norm, FragPos, viewDir );
     }
     
     // Spot light

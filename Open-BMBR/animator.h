@@ -17,9 +17,9 @@ public:
 		m_CurrentAnimation = animation;
     m_Looping = looping;
 
-		m_FinalBoneMatrices.reserve(100);
+		m_FinalBoneMatrices.reserve(250);
 
-		for (int i = 0; i < 100; i++)
+		for (int i = 0; i < 250; i++)
 			m_FinalBoneMatrices.push_back(glm::mat4(1.0f));
 	}
 
@@ -73,7 +73,8 @@ public:
 		{
 			int index = boneInfoMap[nodeName].id;
 			glm::mat4 offset = boneInfoMap[nodeName].offset;
-			m_FinalBoneMatrices[index] = globalTransformation * offset;
+			if (index < m_FinalBoneMatrices.size())
+				m_FinalBoneMatrices[index] = globalTransformation * offset;
 		}
 
 		for (int i = 0; i < node->childrenCount; i++)

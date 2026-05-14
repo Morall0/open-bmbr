@@ -80,8 +80,7 @@ void DrawMapBlocks(const Map& map, Shader& lightingShader, const MapMaterials& m
 
 // Bomb Draw Function
 void DrawBomb(Bomb& bomb, Map& map, GLfloat currentTime, Shader& lightingShader, Model& bombModel, Shader& modelLoadingShader);
-void DrawFire(Bomb& bomb, Map& map, GLfloat currentTime, Shader& lightingShader);
-void DrawSideFlames(glm::vec3 bombPosition, Map& map, Shader& lightingShader);
+void DrawFire(Bomb& bomb, Map& map, GLfloat currentTime, Model& fireModel, Shader& skeletalAnimShader);
 
 void SelectAnimation(Animator& animator, AnimationsSet& animations);
 
@@ -228,6 +227,10 @@ int main() {
 
   Animator animator(&animations.idleAnim, true); // Setting base animation
 
+  Model fire("Models/Fire.gltf");
+  Animation fire_anim("Models/Fire.gltf", &fire, -1);
+  Animator fire_animator(&fire_anim, true);
+
   Model ballomModel("Models/Ballom.obj");
   Model onilCuerpoModel("Models/onil_cuerpo.obj");
   Model onilPieIzqModel("Models/onil_pie_izquierdo.obj");
@@ -259,15 +262,11 @@ int main() {
   GLuint wall_texture = LoadTexture2D("images/native_wall_1.png");
   // Texture creation
   GLuint brick_texture = CreateSolidTexture(64, 64, 64, 255); // Dark gray for destructible bricks
-  GLuint bomb_texture = CreateSolidTexture(255, 255, 255, 255); // Black texture for bombs
-  GLuint fire_texture = CreateSolidTexture(255, 255, 0, 255); // Yellow texture for fire
 
   // Material
   Material ground_mat = {ground_texture, ground_specular, 16.0f, 10.33f, 4.33f};
   Material wall_mat = {wall_texture, 0, 16.0f};
   Material brick_mat = {brick_texture, 0, 16.0f};
-  Material bomb_mat = {bomb_texture, 0, 16.0f};
-  Material fire_mat = {fire_texture, 0, 16.0f};
 
   // Configuring lightingShader
   lightingShader.use();
@@ -341,6 +340,7 @@ int main() {
 
     // Update Animation
     animator.UpdateAnimation(deltaTime);
+    fire_animator.UpdateAnimation(deltaTime);
 
     // Clear the colorbuffer
     glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
@@ -393,14 +393,25 @@ int main() {
       lightingShader.setVec3("bombLight.specular", bombLightIntensity * 0.5f, bombLightIntensity * 0.25f, 0.0f);
     }
 
+    // Fire point light for walls/floor
+    bool fireActive = bomb.isFireActive();
+    lightingShader.setBool("fireLightActive", fireActive);
+    if (fireActive) {
+      glm::vec3 fpos = bomb.getBombPosition() + glm::vec3(0.0f, 0.3f, 0.0f);
+      lightingShader.setVec3("fireLight.position",  fpos);
+      lightingShader.setFloat("fireLight.constant",  1.0f);
+      lightingShader.setFloat("fireLight.linear",    0.09f);
+      lightingShader.setFloat("fireLight.quadratic", 0.032f);
+      lightingShader.setVec3("fireLight.ambient",   0.8f,  0.3f,  0.0f);
+      lightingShader.setVec3("fireLight.diffuse",   2.5f,  1.0f,  0.0f);
+      lightingShader.setVec3("fireLight.specular",  1.0f,  0.5f,  0.0f);
+    }
+
     // MAP ------
     DrawMap(map, lightingShader, map_materials);
 
     // BOMBS ------
-    ApplyTexture(bomb_mat, lightingShader);
     DrawBomb(bomb, map, currentFrame, lightingShader, bombModel, modelLoadingShader);
-    ApplyTexture(fire_mat, lightingShader);
-    DrawFire(bomb, map, currentFrame, lightingShader);
 
     // Check if the player dies
     if (bomb.isFireActive() && bomb.checkCollision(player_position, map) && playerIsAlive) {
@@ -415,6 +426,20 @@ int main() {
     // Send uniforms
     skeletalAnimShader.setMat4("view", view);
     skeletalAnimShader.setMat4("projection", projection);
+    skeletalAnimShader.setVec3("viewPos", camera.GetPosition());
+
+    // Fire point light (illuminates the robot when fire is active)
+    skeletalAnimShader.setBool("fireLightActive", fireActive);
+    if (fireActive) {
+      glm::vec3 fpos = bomb.getBombPosition() + glm::vec3(0.0f, 0.3f, 0.0f);
+      skeletalAnimShader.setVec3("fireLight.position",  fpos);
+      skeletalAnimShader.setFloat("fireLight.constant",  1.0f);
+      skeletalAnimShader.setFloat("fireLight.linear",    0.14f);
+      skeletalAnimShader.setFloat("fireLight.quadratic", 0.07f);
+      skeletalAnimShader.setVec3("fireLight.ambient",   0.6f,  0.25f, 0.0f);
+      skeletalAnimShader.setVec3("fireLight.diffuse",   2.0f,  0.8f,  0.0f);
+      skeletalAnimShader.setVec3("fireLight.specular",  1.0f,  0.5f,  0.0f);
+    }
 
     // Send bones matrices
     auto transforms = animator.GetFinalBoneMatrices();
@@ -427,8 +452,16 @@ int main() {
               glm::toMat4(bomberman.getOrientation());
       model = glm::scale(model, glm::vec3(0.3f, 0.3f, 0.3f));
       skeletalAnimShader.setMat4("model", model);
+      skeletalAnimShader.setInt("isFireModel", 0); // robot = no fire lighting
       robot.Draw(skeletalAnimShader);
     }
+
+    // Send bones matrices for the Fire
+    transforms = fire_animator.GetFinalBoneMatrices();
+    for (size_t i = 0; i < transforms.size(); ++i)
+      skeletalAnimShader.setMat4("finalBonesMatrices[" + std::to_string(i) + "]", transforms[i]);
+
+    DrawFire(bomb, map, currentFrame, fire, skeletalAnimShader);
 
     // ENEMIES ------
     modelLoadingShader.use();
@@ -447,6 +480,19 @@ int main() {
       modelLoadingShader.setVec3("bombLight.ambient",  bombLightIntensity * 0.3f, bombLightIntensity * 0.15f, 0.0f);
       modelLoadingShader.setVec3("bombLight.diffuse",  bombLightIntensity * 1.0f, bombLightIntensity * 0.5f,  0.0f);
       modelLoadingShader.setVec3("bombLight.specular", bombLightIntensity * 0.5f, bombLightIntensity * 0.25f, 0.0f);
+    }
+
+    // Fire point light (illuminates enemies and other objects)
+    modelLoadingShader.setBool("fireLightActive", fireActive);
+    if (fireActive) {
+      glm::vec3 fpos = bomb.getBombPosition() + glm::vec3(0.0f, 0.3f, 0.0f);
+      modelLoadingShader.setVec3("fireLight.position",  fpos);
+      modelLoadingShader.setFloat("fireLight.constant",  1.0f);
+      modelLoadingShader.setFloat("fireLight.linear",    0.14f);
+      modelLoadingShader.setFloat("fireLight.quadratic", 0.07f);
+      modelLoadingShader.setVec3("fireLight.ambient",   0.6f,  0.25f, 0.0f);
+      modelLoadingShader.setVec3("fireLight.diffuse",   2.0f,  0.8f,  0.0f);
+      modelLoadingShader.setVec3("fireLight.specular",  1.0f,  0.5f,  0.0f);
     }
 
     for (const auto &enemy : enemies) {
@@ -711,71 +757,83 @@ void DrawBomb(Bomb& bomb, Map& map, GLfloat currentTime, Shader& lightingShader,
     }
 }
 
-void DrawFire(Bomb& bomb, Map& map, GLfloat currentTime, Shader& lightingShader) {
+void DrawFire(Bomb& bomb, Map& map, GLfloat currentTime, Model& fireModel, Shader& skeletalAnimShader) {
 
     if (bomb.isFireActive() == true) // If the bomb already exploded
     {
-      glm::vec3 bombPosition = bomb.getBombPosition();
-      MapIndices grid_position = map.toMapIndices(bombPosition);
+      glm::vec3 firePosition = bomb.getBombPosition() - glm::vec3(0.0f, 0.25f, 0.0f);
+      MapIndices grid_position = map.toMapIndices(firePosition);
 
       if (currentTime >= bomb.getFireExpiration()) { // Fire end
         bomb.putOutFire(grid_position, map);
       }
 
-      // Drawing the center
+      glm::vec3 center = firePosition + glm::vec3(0.0f, 0.45f, 0.0f); // elevated gradient center
+      skeletalAnimShader.setInt("isFireModel", 1);
+
+      // --- Center flame (uniform scale) ---
       glm::mat4 model(1.0f);
-      model = glm::translate(model, bombPosition);
-      model = glm::scale(model, glm::vec3(1.0f, 1.0f, 1.0f));
-      lightingShader.setMat4("model", model);
-      glDrawArrays(GL_TRIANGLES, 0, 36);
+      model = glm::translate(model, firePosition);
+      model = glm::scale(model, glm::vec3(0.04f, 0.04f, 0.04f));
+      skeletalAnimShader.setMat4("model", model);
+      skeletalAnimShader.setVec3("fireCenter", center);
+      fireModel.Draw(skeletalAnimShader);
 
-      DrawSideFlames(bombPosition, map, lightingShader);
+      // Cross flames X axis
+      {
+        glm::vec3 posX = firePosition + glm::vec3( 1.0f, 0.0f, 0.0f);
+        glm::vec3 negX = firePosition + glm::vec3(-1.0f, 0.0f, 0.0f);
+        bool posXfree = map.getCell(map.toMapIndices(posX).row, map.toMapIndices(posX).col) == 6;
+        bool negXfree = map.getCell(map.toMapIndices(negX).row, map.toMapIndices(negX).col) == 6;
+
+        if (posXfree) {
+          // Right half centered at +0.5 on X
+          model = glm::mat4(1.0f);
+          model = glm::translate(model, firePosition + glm::vec3(0.5f, 0.0f, 0.0f));
+          model = glm::scale(model, glm::vec3(0.04f * 3.0f, 0.04f, 0.04f));
+          skeletalAnimShader.setMat4("model", model);
+          skeletalAnimShader.setVec3("fireCenter", center);
+          fireModel.Draw(skeletalAnimShader);
+        }
+        if (negXfree) {
+          // Left half centered at -0.5 on X
+          model = glm::mat4(1.0f);
+          model = glm::translate(model, firePosition + glm::vec3(-0.5f, 0.0f, 0.0f));
+          model = glm::scale(model, glm::vec3(0.04f * 3.0f, 0.04f, 0.04f));
+          skeletalAnimShader.setMat4("model", model);
+          skeletalAnimShader.setVec3("fireCenter", center);
+          fireModel.Draw(skeletalAnimShader);
+        }
+      }
+
+      // Cross flames Z axis
+      {
+        glm::vec3 posZ = firePosition + glm::vec3(0.0f, 0.0f,  1.0f);
+        glm::vec3 negZ = firePosition + glm::vec3(0.0f, 0.0f, -1.0f);
+        bool posZfree = map.getCell(map.toMapIndices(posZ).row, map.toMapIndices(posZ).col) == 6;
+        bool negZfree = map.getCell(map.toMapIndices(negZ).row, map.toMapIndices(negZ).col) == 6;
+
+        if (posZfree) {
+          model = glm::mat4(1.0f);
+          model = glm::translate(model, firePosition + glm::vec3(0.0f, 0.0f, 0.5f));
+          model = glm::scale(model, glm::vec3(0.04f, 0.04f, 0.04f * 3.0f));
+          skeletalAnimShader.setMat4("model", model);
+          skeletalAnimShader.setVec3("fireCenter", center);
+          fireModel.Draw(skeletalAnimShader);
+        }
+        if (negZfree) {
+          model = glm::mat4(1.0f);
+          model = glm::translate(model, firePosition + glm::vec3(0.0f, 0.0f, -0.5f));
+          model = glm::scale(model, glm::vec3(0.04f, 0.04f, 0.04f * 3.0f));
+          skeletalAnimShader.setMat4("model", model);
+          skeletalAnimShader.setVec3("fireCenter", center);
+          fireModel.Draw(skeletalAnimShader);
+        }
+      }
+
+      // Restore state
+      skeletalAnimShader.setInt("isFireModel", 0);
     }
-}
-
-void DrawSideFlames(glm::vec3 bombPosition, Map& map, Shader& lightingShader) {
-  glm::mat4 model(1.0f);
-
-  // Drawing the side flames (two per iteration)
-  for (int i = 0; i < 2; i++) {
-    pair<GLfloat, GLfloat> increments;
-
-    if (i % 2 == 0)
-      increments = {1, 0}; // X axis side flames
-    else
-      increments = {0, 1}; // Z axis side flames
-
-    // Calculate the 1st flame position
-    glm::vec3 sideflame_position = bombPosition + glm::vec3(increments.first, 0.0f, increments.second);
-    MapIndices grid_position = map.toMapIndices(sideflame_position);
-    int cell = map.getCell(grid_position.row, grid_position.col);
-
-    // If there aren't indestructible blocks
-    if (cell == 6) {
-      // Draw 1st flame
-      model = glm::mat4(1.0f);
-      model = glm::translate(model, sideflame_position);
-      model = glm::scale(model, glm::vec3(0.9f, 0.9f, 0.9f));
-      lightingShader.setMat4("model", model);
-      glDrawArrays(GL_TRIANGLES, 0, 36);
-    }
-
-
-    // Calculate the 2nd flame position
-    sideflame_position = bombPosition + glm::vec3(-increments.first, 0.0f, -increments.second);
-    grid_position = map.toMapIndices(sideflame_position);
-    cell = map.getCell(grid_position.row, grid_position.col);
-
-    // If there aren't indestructible blocks
-    if (cell == 6 ) {
-      // Draw 2nd flame
-      model = glm::mat4(1.0f);
-      model = glm::translate(model, sideflame_position);
-      model = glm::scale(model, glm::vec3(0.9f, 0.9f, 0.9f));
-      lightingShader.setMat4("model", model);
-      glDrawArrays(GL_TRIANGLES, 0, 36);
-    }
-  }
 }
 
 // Moves/alters the camera positions based on user input

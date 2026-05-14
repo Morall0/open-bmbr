@@ -89,7 +89,7 @@ private:
             // the node object only contains indices to index the actual objects in the scene. 
             // the scene contains all the data, node is just to keep stuff organized (like relations between nodes).
             aiMesh* mesh = scene->mMeshes[node->mMeshes[i]];
-            meshes.push_back(processMesh(mesh, scene));
+            meshes.push_back(processMesh(mesh, scene, node));
         }
         // after we've processed all of the meshes (if any) we then recursively process each of the children nodes
         for(unsigned int i = 0; i < node->mNumChildren; i++)
@@ -109,7 +109,7 @@ private:
 	}
 
 
-	Mesh processMesh(aiMesh* mesh, const aiScene* scene)
+	Mesh processMesh(aiMesh* mesh, const aiScene* scene, aiNode* node)
 	{
 		vector<Vertex> vertices;
 		vector<unsigned int> indices;
@@ -155,7 +155,7 @@ private:
 		material->Get(AI_MATKEY_COLOR_DIFFUSE, color);
 		glm::vec3 diffuseColor(color.r, color.g, color.b);
 
-		ExtractBoneWeightForVertices(vertices,mesh,scene);
+		ExtractBoneWeightForVertices(vertices,mesh,scene,node);
 
 		return Mesh(vertices, indices, textures, diffuseColor);
 	}
@@ -190,10 +190,36 @@ private:
 	}
 
 
-	void ExtractBoneWeightForVertices(std::vector<Vertex>& vertices, aiMesh* mesh, const aiScene* scene)
+	void ExtractBoneWeightForVertices(std::vector<Vertex>& vertices, aiMesh* mesh, const aiScene* scene, aiNode* node)
 	{
 		auto& boneInfoMap = m_BoneInfoMap;
 		int& boneCount = m_BoneCounter;
+
+		if (mesh->mNumBones == 0)
+		{
+			int boneID = -1;
+			std::string nodeName = node->mName.C_Str();
+
+			if (boneInfoMap.find(nodeName) == boneInfoMap.end())
+			{
+				BoneInfo newBoneInfo;
+				newBoneInfo.id = boneCount;
+				newBoneInfo.offset = glm::mat4(1.0f);
+				boneInfoMap[nodeName] = newBoneInfo;
+				boneID = boneCount;
+				boneCount++;
+			}
+			else
+			{
+				boneID = boneInfoMap[nodeName].id;
+			}
+
+			for (size_t i = 0; i < vertices.size(); ++i)
+			{
+				SetVertexBoneData(vertices[i], boneID, 1.0f);
+			}
+			return;
+		}
 
 		for (unsigned int boneIndex = 0; boneIndex < mesh->mNumBones; ++boneIndex)
 		{

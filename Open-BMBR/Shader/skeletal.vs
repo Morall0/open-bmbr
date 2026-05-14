@@ -12,11 +12,13 @@ uniform mat4 projection;
 uniform mat4 view;
 uniform mat4 model;
 
-const int MAX_BONES = 100;
+const int MAX_BONES = 250;
 const int MAX_BONE_INFLUENCE = 4;
 uniform mat4 finalBonesMatrices[MAX_BONES];
 
 out vec2 TexCoords;
+out vec3 FragPos;
+out vec3 Normal;
 
 void main()
 {
@@ -51,6 +53,9 @@ void main()
     totalPosition.w = 1.0f;
   }
 
-  gl_Position = projection * view * model * totalPosition;
+  vec4 worldPos = model * totalPosition;
+  gl_Position = projection * view * worldPos;
+  FragPos = vec3(worldPos);
+  Normal = mat3(transpose(inverse(model))) * norm;
   TexCoords = tex;
 }

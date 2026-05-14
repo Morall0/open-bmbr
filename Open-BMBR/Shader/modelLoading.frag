@@ -21,6 +21,8 @@ struct PointLight {
 
 uniform PointLight bombLight;
 uniform bool bombLightActive;
+uniform PointLight fireLight;
+uniform bool fireLightActive;
 uniform vec3 viewPos;
 
 vec3 CalcPointLight(PointLight light, vec3 normal, vec3 fragPos, vec3 viewDir, vec3 baseColor)
@@ -56,6 +58,13 @@ void main()
         vec3 norm = normalize(Normal);
         vec3 viewDir = normalize(viewPos - FragPos);
         result += CalcPointLight(bombLight, norm, FragPos, viewDir, baseColor);
+    }
+
+    if (fireLightActive)
+    {
+        vec3 norm = normalize(Normal);
+        vec3 viewDir = normalize(viewPos - FragPos);
+        result += CalcPointLight(fireLight, norm, FragPos, viewDir, baseColor);
     }
 
     FragColor = vec4(result, 1.0);

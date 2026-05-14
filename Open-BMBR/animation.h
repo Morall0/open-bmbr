@@ -22,7 +22,7 @@ class Animation
 public:
 	Animation() = default;
 
-	Animation(const std::string& animationPath, Model* model, unsigned int animationIndex)
+	Animation(const std::string& animationPath, Model* model, int animationIndex)
 	{
 		Assimp::Importer importer;
     const aiScene* scene = importer.ReadFile(animationPath,
@@ -35,7 +35,7 @@ public:
     //   std::cout << "ERROR: 0 animations" << std::endl;
     //   return;
     // }
-		auto animation = scene->mAnimations[animationIndex]; // Select the desired anim
+		auto animation = scene->mAnimations[animationIndex == -1 ? 0 : animationIndex]; // Select the desired anim
     // std::cout << "Animation name: " << animation->mName.C_Str() << std::endl;
     // for (unsigned int i = 0; i<scene->mNumAnimations; i++)
     //   std::cout << "Animation name [" << i << "]: " << scene->mAnimations[i]->mName.C_Str() << std::endl;
@@ -48,7 +48,7 @@ public:
     m_GlobalInverseTransform = AssimpGLMHelpers::ConvertMatrixToGLMFormat(globalTransformation);
 		ReadHierarchyData(m_RootNode, scene->mRootNode);
     // std::cout << "Reading bones..." << std::endl;
-		ReadMissingBones(animation, *model);
+		ReadMissingBones(scene, animationIndex, *model);
 	}
 
 	~Animation()
@@ -76,26 +76,34 @@ public:
 	}
   inline const glm::mat4& GetGlobalInverseTransform() { return m_GlobalInverseTransform; }
 private:
-	void ReadMissingBones(const aiAnimation* animation, Model& model)
+	void ReadMissingBones(const aiScene* scene, int animationIndex, Model& model)
 	{
-		int size = animation->mNumChannels;
-
 		auto& boneInfoMap = model.GetBoneInfoMap();//getting m_BoneInfoMap from Model class
 		int& boneCount = model.GetBoneCount(); //getting the m_BoneCounter from Model class
 
-		//reading channels(bones engaged in an animation and their keyframes)
-		for (int i = 0; i < size; i++)
-		{
-			auto channel = animation->mChannels[i];
-			std::string boneName = channel->mNodeName.data;
+		int startAnim = animationIndex == -1 ? 0 : animationIndex;
+		int endAnim = animationIndex == -1 ? scene->mNumAnimations : animationIndex + 1;
 
-			if (boneInfoMap.find(boneName) == boneInfoMap.end())
+		for (int animIdx = startAnim; animIdx < endAnim; animIdx++)
+		{
+			auto animation = scene->mAnimations[animIdx];
+			int size = animation->mNumChannels;
+
+			//reading channels(bones engaged in an animation and their keyframes)
+			for (int i = 0; i < size; i++)
 			{
-				boneInfoMap[boneName].id = boneCount;
-				boneCount++;
+				auto channel = animation->mChannels[i];
+				std::string boneName = channel->mNodeName.data;
+
+				if (boneInfoMap.find(boneName) == boneInfoMap.end())
+				{
+					boneInfoMap[boneName].id = boneCount;
+					boneInfoMap[boneName].offset = glm::mat4(1.0f);
+					boneCount++;
+				}
+				m_Bones.push_back(Bone(channel->mNodeName.data,
+					boneInfoMap[channel->mNodeName.data].id, channel));
 			}
-			m_Bones.push_back(Bone(channel->mNodeName.data,
-				boneInfoMap[channel->mNodeName.data].id, channel));
 		}
 
 		m_BoneInfoMap = boneInfoMap;
