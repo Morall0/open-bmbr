@@ -983,6 +983,13 @@ void DoMovement(Player& bomberman, Map& map, std::vector<Enemy>& enemies, Bomb& 
     if (keys[GLFW_KEY_RIGHT]) {
       camera.ProcessKeyboard(RIGHT, deltaTime);
     }
+
+    // Limit camera position
+    glm::vec3 camPos = camera.GetPosition();
+    camPos.x = glm::clamp(camPos.x, -half_cols - 5.0f, half_cols + 5.0f);
+    camPos.y = glm::clamp(camPos.y, 0.0f, 20.0f);
+    camPos.z = glm::clamp(camPos.z, -half_rows - 5.0f, half_rows + 5.0f);
+    camera.setPosition(camPos);
   }
 
   // Player controls
