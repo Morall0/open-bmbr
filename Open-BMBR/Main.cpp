@@ -79,7 +79,7 @@ void DrawWalls(Shader& lightingShader, const Material& wall_mat);
 void DrawMapBlocks(const Map& map, Shader& lightingShader, const MapMaterials& map_materials);
 
 // Bomb Draw Function
-void DrawBomb(Bomb& bomb, Map& map, GLfloat currentTime, Shader& lightingShader);
+void DrawBomb(Bomb& bomb, Map& map, GLfloat currentTime, Shader& lightingShader, Model& bombModel, Shader& modelLoadingShader);
 void DrawFire(Bomb& bomb, Map& map, glm::vec3 player_position, GLfloat currentTime, Shader& lightingShader);
 void DrawSideFlames(glm::vec3 bombPosition, Map& map, Shader& lightingShader);
 
@@ -228,6 +228,7 @@ int main() {
   Model onilCuerpoModel("Models/onil_cuerpo.obj");
   Model onilPieIzqModel("Models/onil_pie_izquierdo.obj");
   Model onilPieDerModel("Models/onil_pie_derecho.obj");
+  Model bombModel("Models/bomb.obj");
 
   // First, set the container's VAO (and VBO)
   GLuint VBO, VAO;
@@ -301,7 +302,7 @@ int main() {
   Player bomberman(glm::vec3(-half_cols + 1, -0.49f, -half_rows + 1), glm::vec2(0.0f, 1.0f));
 
   // Initializing Bomb object with duration and y_pos
-  Bomb bomb(2.5f, -0.1f);
+  Bomb bomb(2.5f, -0.2f);
 
   // Set the projection type and parameters
   glm::mat4 projection = glm::perspective(camera.GetZoom(), 
@@ -358,7 +359,7 @@ int main() {
 
     // BOMBS ------
     ApplyTexture(bomb_mat, lightingShader);
-    DrawBomb(bomb, map, currentFrame, lightingShader);
+    DrawBomb(bomb, map, currentFrame, lightingShader, bombModel, modelLoadingShader);
     ApplyTexture(fire_mat, lightingShader);
     DrawFire(bomb, map, bomberman.getPosition(), currentFrame, lightingShader);
 
@@ -628,25 +629,27 @@ void DrawMapBlocks(const Map& map, Shader& lightingShader, const MapMaterials& m
   }
 }
 
-void DrawBomb(Bomb& bomb, Map& map, GLfloat currentTime, Shader& lightingShader) {
+void DrawBomb(Bomb& bomb, Map& map, GLfloat currentTime, Shader& lightingShader, Model& bombModel, Shader& modelLoadingShader) {
     if (bomb.getBombState() == true) // If the bomb is activated
     {
       float blinkSpeed = 6.0f;
       float blinkIntensity = 0.05f;
 
       float blinkScale = sin(currentTime * blinkSpeed) * blinkIntensity;
-      float fianlBlinkScale = 0.9f + blinkScale; //default scale = 0.9f
+      float fianlBlinkScale = 0.15f + (blinkScale * 0.5f); //default scale = 0.9f
       
       glm::vec3 bomb_position = bomb.getBombPosition();
       if (currentTime >= bomb.getBombExpiration()) { // If the bomb explodes
         bomb.expireBomb(bomb_position, map, currentTime);
       }
 
+      modelLoadingShader.use();
       glm::mat4 model(1.0f);
       model = glm::translate(model, bomb_position);
       model = glm::scale(model, glm::vec3(fianlBlinkScale, fianlBlinkScale, fianlBlinkScale));
-      lightingShader.setMat4("model", model);
-      glDrawArrays(GL_TRIANGLES, 0, 36);
+      modelLoadingShader.setMat4("model", model);
+      bombModel.Draw(modelLoadingShader);
+      lightingShader.use();
     }
 }
 
