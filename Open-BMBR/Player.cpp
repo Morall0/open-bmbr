@@ -181,7 +181,7 @@ bool Player::CheckCollision(glm::vec3 newPos, const Map& map)
       if(!canPassBomb)
         return true;
     }
-    else if (cell != 0 && cell != 6) // Collision omitting flame
+    else if (cell != 0 && cell != 6 && cell != 7 && cell != 8) // Collision omitting flame, door, and powerup
       return true;
   }
 

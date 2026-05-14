@@ -34,6 +34,8 @@ public:
     void detonateBomb(MapIndices indices);
     void extinguishFire(MapIndices indices);
     MapIndices toMapIndices(glm::vec3 position) const;
+    bool hasDoorRevealed() const;
+    MapIndices getDoorPosition() const;
 };
 
 #endif

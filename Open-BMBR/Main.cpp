@@ -82,6 +82,7 @@ void DrawMapBlocks(const Map& map, Shader& lightingShader, const MapMaterials& m
 // Bomb Draw Function
 void DrawBomb(Bomb& bomb, Map& map, GLfloat currentTime, Shader& lightingShader, Model& bombModel, Shader& modelLoadingShader);
 void DrawFire(Bomb& bomb, Map& map, GLfloat currentTime, Model& fireModel, Shader& skeletalAnimShader);
+void DrawDoor(const Map& map, Model& hatchModel, Shader& modelLoadingShader);
 
 void SelectAnimation(Animator& animator, AnimationsSet& animations);
 
@@ -110,6 +111,7 @@ const float half_cols = (COLS + 1) / 2.0f;
 
 bool moving = false;
 bool playerIsAlive = true;
+bool playerWon = false;
 
 float vertices[] = {
   // Vertex coords     // Normal cords      // Texcoords 
@@ -237,6 +239,7 @@ int main() {
   Model onilPieIzqModel("Models/onil_pie_izquierdo.obj");
   Model onilPieDerModel("Models/onil_pie_derecho.obj");
   Model bombModel("Models/bomb.obj");
+  Model hatchModel("Models/hatch.obj");
 
   // First, set the container's VAO (and VBO)
   GLuint VBO, VAO;
@@ -313,10 +316,10 @@ int main() {
   Map map(ROWS, COLS);
   map.genMap();
   map.genHidden();
-  // map.printMap(); // Used to print map to console for debugging
+  map.printMap(); // Used to print map to console for debugging
 
   // Spawning enemies
-  std::vector<Enemy> enemies = Enemy::SpawnEnemies(map, 6, 8);
+  std::vector<Enemy> enemies = Enemy::SpawnEnemies(map, 1, 2);
 
   // Set map assets for drawing
   MapMaterials map_materials;
@@ -437,10 +440,31 @@ int main() {
     // BOMBS ------
     DrawBomb(bomb, map, currentFrame, lightingShader, bombModel, modelLoadingShader);
 
+    // DOOR ------
+    if (map.hasDoorRevealed()) {
+      DrawDoor(map, hatchModel, modelLoadingShader);
+    }
+
     // Check if the player dies from fire
     if (bomb.isFireActive() && bomb.checkCollision(player_position, map) && playerIsAlive) {
       playerIsAlive = false;
       animator.PlayAnimation(&animations.deadAnim, false);
+    }
+
+    // Check if the player wins (stands on the revealed door with no enemies alive)
+    if (playerIsAlive && map.hasDoorRevealed() && enemies.empty()) {
+      MapIndices doorIdx = map.getDoorPosition();
+      MapIndices playerIdx = map.toMapIndices(player_position);
+      if (playerIdx.row == doorIdx.row && playerIdx.col == doorIdx.col) {
+        if (!playerWon) {
+          std::cout << "\n=====================================" << std::endl;
+          std::cout << "   VICTORY! All enemies defeated!    " << std::endl;
+          std::cout << "     Press 'R' to play again         " << std::endl;
+          std::cout << "=====================================\n" << std::endl;
+          playerWon = true;
+          animator.PlayAnimation(&animations.idleAnim, true);
+        }
+      }
     }
 
     // Check if the player dies from an enemy
@@ -778,7 +802,7 @@ void DrawMapBlocks(const Map& map, Shader& lightingShader, const MapMaterials& m
   for (int row = 0; row < ROWS; row++) {
     for (int col = 0; col < COLS; col++) {
       int cell = map.getCell(row, col);
-      if (cell == 0 || cell == 5 || cell == 6)
+      if (cell == 0 || cell == 5 || cell == 6 || cell == 7 || cell == 8)
         continue;
 
       float xPos = col - (half_cols - 1);
@@ -903,10 +927,37 @@ void DrawFire(Bomb& bomb, Map& map, GLfloat currentTime, Model& fireModel, Shade
     }
 }
 
+// Draws the new hatch door model at every map cell with value 7 (door revealed)
+void DrawDoor(const Map& map, Model& hatchModel, Shader& modelLoadingShader) {
+    modelLoadingShader.use();
+    modelLoadingShader.setFloat("shininess", 32.0f);
+
+    for (int row = 0; row < map.getTotalRows(); row++) {
+        for (int col = 0; col < map.getTotalCols(); col++) {
+            if (map.getCell(row, col) != 7)
+                continue;
+
+            float xPos = col - (half_cols - 1);
+            float zPos = row - (half_rows - 1);
+            
+            // Adjust position to be on the floor
+            glm::vec3 doorWorldPos(xPos, -0.48f, zPos);
+
+            glm::mat4 model(1.0f);
+            model = glm::translate(model, doorWorldPos);
+            // Increased to 0.0008f to make the hatch radius larger.
+            model = glm::scale(model, glm::vec3(0.0009f, 0.0009f, 0.0009f));
+            
+            modelLoadingShader.setMat4("model", model);
+            hatchModel.Draw(modelLoadingShader);
+        }
+    }
+}
+
 // Moves/alters the camera positions based on user input
 void DoMovement(Player& bomberman, Map& map, std::vector<Enemy>& enemies, Bomb& bomb, Animator& animator, AnimationsSet& animations) {
-  if (!playerIsAlive) { // Cant move if player dies
-    // Restart when player dies
+  if (!playerIsAlive || playerWon) { // Cant move if player dies or wins
+    // Restart when player dies or wins
     if (keys[GLFW_KEY_R])
       restart(bomberman, map, enemies);
     else // Movement not allowed
@@ -1025,6 +1076,7 @@ void restart(Player& bomberman, Map& map, std::vector<Enemy>& enemies) {
 
   // Reset the player
   playerIsAlive = true;
+  playerWon = false;
   bomberman.resetTo(glm::vec3(-half_cols + 1, -0.49f, -half_rows + 1), glm::vec3(0.0f, 0.0f, 1.0f));
 }
 
