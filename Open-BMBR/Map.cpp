@@ -5,7 +5,7 @@
 #include <utility>
 
 // Probability of a block to be destructible
-const int destructibleProb = 60;
+const int destructibleProb = 50;
 
 // Constructor
 Map::Map(int rows, int cols)
@@ -96,6 +96,10 @@ void Map::printMap() const {
                 std::cout << "BB";
             else if (mapGrid[row][col] == 6)
                 std::cout << "FF";
+            else if (mapGrid[row][col] == 7)
+                std::cout << "DD"; // Door revealed
+            else if (mapGrid[row][col] == 8)
+                std::cout << "pu"; // Powerup revealed
         }
 
         std::cout << std::endl;
@@ -148,12 +152,13 @@ void Map::setFire(MapIndices indices)
   for (int i = 0; i < 4; i++)
   {
     int cell = getCell(neighbors[i].row, neighbors[i].col); // neighbor cell
-    if (cell == 0) // Air cell
-      mapGrid[neighbors[i].row][neighbors[i].col] = 6; // Set fire number id
+    if (cell == 0) // Only spread fire to empty air cells
+      mapGrid[neighbors[i].row][neighbors[i].col] = 6;
+    // Cells 7 (door) and 8 (powerup) are NOT overwritten by fire
   }
 }
 
-void Map::detonateBomb(MapIndices indices) // TODO: Catch Doors and powerups
+void Map::detonateBomb(MapIndices indices)
 {
   int row = indices.row;
   int col = indices.col;
@@ -169,8 +174,12 @@ void Map::detonateBomb(MapIndices indices) // TODO: Catch Doors and powerups
   for (int i = 0; i < 4; i++)
   {
     int cell = getCell(neighbors[i].row, neighbors[i].col); // neighbor cell
-    if (cell == 2) // A destructible block
-      mapGrid[neighbors[i].row][neighbors[i].col] = 0; // Destroy block
+    if (cell == 2) // A regular destructible block — clear it
+      mapGrid[neighbors[i].row][neighbors[i].col] = 0;
+    else if (cell == 3) // Hidden exit (door) — reveal it
+      mapGrid[neighbors[i].row][neighbors[i].col] = 7;
+    else if (cell == 4) // Hidden powerup — reveal it
+      mapGrid[neighbors[i].row][neighbors[i].col] = 8;
   }
 
   mapGrid[row][col] = 0; // Destroy bomb
@@ -206,6 +215,26 @@ MapIndices Map::toMapIndices(glm::vec3 position) const
   indices.col = (int)std::round(position.x + (half_cols - 1));
   indices.row = (int)std::round(position.z + (half_rows - 1));
 
-
   return indices;
+}
+
+// Returns true if the door has been revealed (cell type 7 exists in the grid)
+bool Map::hasDoorRevealed() const
+{
+  for (int r = 0; r < rows; r++)
+    for (int c = 0; c < cols; c++)
+      if (mapGrid[r][c] == 7)
+        return true;
+  return false;
+}
+
+// Returns the map indices of the revealed door (cell 7).
+// Check hasDoorRevealed() first before calling this.
+MapIndices Map::getDoorPosition() const
+{
+  for (int r = 0; r < rows; r++)
+    for (int c = 0; c < cols; c++)
+      if (mapGrid[r][c] == 7)
+        return {r, c};
+  return {-1, -1};
 }
