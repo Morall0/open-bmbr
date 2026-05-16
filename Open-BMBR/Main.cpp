@@ -101,15 +101,22 @@ GLfloat lastY = HEIGHT / 2.0;
 bool keys[1024];
 bool firstMouse = true;
 
-enum CameraMode { MODE_FREE, MODE_FIRST_PERSON, MODE_SIDE_SCROLL };
+// Camera modes
+enum CameraMode {
+  MODE_FREE,
+  MODE_FIRST_PERSON,
+  MODE_SIDE_SCROLL
+};
+
+// Initialize the camera mode in SCROLL by default
 CameraMode currentCameraMode = MODE_SIDE_SCROLL;
 
 // Map dimensions
 const int ROWS = 11, COLS = 29;
-
 const float half_rows = (ROWS + 1) / 2.0f;
 const float half_cols = (COLS + 1) / 2.0f;
 
+// Player state flags
 bool moving = false;
 bool playerIsAlive = true;
 bool playerWon = false;
@@ -342,8 +349,10 @@ int main() {
                                           0.1f,
                                           100.0f);
 
-  // Game loop
+  // Previous mode to control the camera change
   CameraMode prevCameraMode = currentCameraMode;
+
+  // Game loop
   while (!glfwWindowShouldClose(window)) {
     // Calculate deltatime of current frame
     GLfloat currentFrame = glfwGetTime();
@@ -359,7 +368,7 @@ int main() {
 
     for (auto it = enemies.begin(); it != enemies.end(); ) {
       it->Update(deltaTime, map, player_position);
-      // Eliminar del vector solo cuando la animacion de muerte termino (escala = 0)
+      // Delete from vector only when dead animation ends (scale 0)
       if (it->getIsDead() && it->getDeathScale() <= 0.0f) {
         it = enemies.erase(it);
       } else {
@@ -367,7 +376,7 @@ int main() {
       }
     }
 
-    // Update Animation
+    // Update keyframe animations
     animator.UpdateAnimation(deltaTime);
     fire_animator.UpdateAnimation(deltaTime);
 
@@ -377,15 +386,17 @@ int main() {
 
     lightingShader.use();
 
-    // Detectar transicion de modo de camara
+    // Detect camera mode transition
     if (currentCameraMode != prevCameraMode) {
       if (currentCameraMode == MODE_FREE) {
-        // Centrada horizontal y verticalmente mirando hacia abajo
-        camera.setPosition(glm::vec3(0.0f, 18.0f, 0.0f));
-        camera.setYawPitch(-90.0f, -89.0f);
+        camera.setPosition(glm::vec3(0.0f, 11.0f, 7.8f)); // Starts in pseudo-isometric position
+        camera.setYawPitch(-90.0f, -60.0f);
       } else if (currentCameraMode == MODE_FIRST_PERSON) {
-        // Preservar el yaw actual (la direccion en que mira), forzar pitch=0 (horizonte)
-        camera.setYawPitch(camera.getYaw(), 0.0f);
+        // Sync yaw to current player orientation
+        glm::vec3 playerDir = bomberman.getOrientation() * glm::vec3(0.0f, 0.0f, 1.0f);
+        GLfloat targetYaw = glm::degrees(atan2(playerDir.z, playerDir.x));
+        
+        camera.setYawPitch(targetYaw, 0.0f);
       }
       prevCameraMode = currentCameraMode;
     }
@@ -969,27 +980,20 @@ void DoMovement(Player& bomberman, Map& map, std::vector<Enemy>& enemies, Bomb& 
   // Camera controls
   if (currentCameraMode == MODE_FREE) {
     if (keys[GLFW_KEY_UP]) {
-      camera.ProcessKeyboard(FORWARD, deltaTime);
+      camera.ProcessKeyboard(FORWARD, deltaTime, half_cols, half_rows);
     }
 
     if (keys[GLFW_KEY_DOWN]) {
-      camera.ProcessKeyboard(BACKWARD, deltaTime);
+      camera.ProcessKeyboard(BACKWARD, deltaTime, half_cols, half_rows);
     }
 
     if (keys[GLFW_KEY_LEFT]) {
-      camera.ProcessKeyboard(LEFT, deltaTime);
+      camera.ProcessKeyboard(LEFT, deltaTime, half_cols, half_rows);
     }
 
     if (keys[GLFW_KEY_RIGHT]) {
-      camera.ProcessKeyboard(RIGHT, deltaTime);
+      camera.ProcessKeyboard(RIGHT, deltaTime, half_cols, half_rows);
     }
-
-    // Limit camera position
-    glm::vec3 camPos = camera.GetPosition();
-    camPos.x = glm::clamp(camPos.x, -half_cols - 5.0f, half_cols + 5.0f);
-    camPos.y = glm::clamp(camPos.y, 0.0f, 20.0f);
-    camPos.z = glm::clamp(camPos.z, -half_rows - 5.0f, half_rows + 5.0f);
-    camera.setPosition(camPos);
   }
 
   // Player controls
