@@ -11,23 +11,23 @@ Drawer::Drawer(Shader& lightingShader, Shader& skeletalAnimShader, Shader& model
 
 void Drawer::InitMapMaterials() {
   // Load map textures
-  GLuint ground_diff  = LoadTexture2D("images/ground_diffuse.png");
-  GLuint ground_rough = LoadTexture2D("images/ground_rough.png");
-  GLuint ground_ao    = LoadTexture2D("images/ground_ao.png");
+  GLuint ground_diff  = LoadTexture2D("images/grass.png");
+  GLuint ground_rough = LoadTexture2D("images/grass.png");
+  GLuint ground_ao    = LoadTexture2D("images/grass.png");
 
   // Wall PBR maps
-  GLuint wall_diff    = LoadTexture2D("images/wall_diffuse.png");
-  GLuint wall_rough   = LoadTexture2D("images/wall_rough.png");
-  GLuint wall_ao      = LoadTexture2D("images/wall_diffuse.png");
+  GLuint wall_diff    = LoadTexture2D("images/hardblock.png");
+  GLuint wall_rough   = LoadTexture2D("images/hardblock.png");
+  GLuint wall_ao      = LoadTexture2D("images/hardblock.png");
 
   // Brick PBR maps
-  GLuint brick_diff  = LoadTexture2D("images/brick_diffuse.png"); 
-  GLuint brick_rough = LoadTexture2D("images/brick_rough.png");
-  GLuint brick_ao    = LoadTexture2D("images/brick_ao.png");
+  GLuint brick_diff  = LoadTexture2D("images/wall.png"); 
+  GLuint brick_rough = LoadTexture2D("images/wall.png");
+  GLuint brick_ao    = LoadTexture2D("images/wall.png");
 
-  map_materials.ground_mat = {ground_diff, ground_rough, ground_ao, 16.0f, 29.0f, 11.0f};
-  map_materials.wall_mat   = {wall_diff,   wall_rough,   wall_ao,   64.0f, 0.5f,  0.5f};
-  map_materials.brick_mat  = {brick_diff,  brick_rough,  brick_ao,  16.0f, 0.5f,  0.5f};
+  map_materials.ground_mat = {ground_diff, ground_rough, ground_ao, 16.0f, 14.5f, 5.5f};
+  map_materials.wall_mat   = {wall_diff,   wall_rough,   wall_ao,   64.0f, 1.0f,  1.0f};
+  map_materials.brick_mat  = {brick_diff,  brick_rough,  brick_ao,  16.0f, 1.0f,  1.0f};
 }
 
 void Drawer::SetupLights(Bomb& bomb, GLfloat currentFrame) {
