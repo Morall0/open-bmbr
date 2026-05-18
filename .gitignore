@@ -1,8 +1,8 @@
 .vs
 Makefile
-Debug
-Open-BMR/Debug
-x64/
-Open-BMBR/x64/
+/Debug/
+/x64/
+/Open-BMBR/Debug/
+/Open-BMBR/x64/
 Main
 .editorconfig
