@@ -37,24 +37,7 @@
 #include "Shader.h"
 #include "model_animation.h"
 
-// Structure for material
-struct Material {
-  GLuint diffuse;
-  GLuint specular;
-  GLuint ao;
-
-  float shininess = 16.0f;
-
-  float uvScaleX = 1.0f;
-  float uvScaleY = 1.0f;
-};
-
-// Structure for Map Drawing functions
-struct MapMaterials {
-    Material ground_mat;
-    Material wall_mat;
-    Material brick_mat;
-};
+#include "Drawer.hpp"
 
 struct AnimationsSet {
   Animation winAnim;
@@ -68,22 +51,6 @@ struct AnimationsSet {
 void KeyCallback(GLFWwindow *window, int key, int scancode, int action, int mode);
 void MouseCallback(GLFWwindow *window, double xPos, double yPos);
 void DoMovement(Player& bomberman, Map& map, std::vector<Enemy>& enemies, Bomb& bomb, Animator& animator, AnimationsSet& animations);
-
-// Texture functions
-GLuint LoadTexture2D(const char *path);
-GLuint CreateSolidTexture(unsigned char r, unsigned char g, unsigned char b, unsigned char a);
-void ApplyTexture(const Material& material, Shader& lightingShader);
-
-// Map Draw Functions
-void DrawMap(const Map& map, Shader& lightingShader, const MapMaterials& map_materials);
-void DrawFloor(Shader& lightingShader, const Material& ground_mat);
-void DrawWalls(Shader& lightingShader, const Material& wall_mat);
-void DrawMapBlocks(const Map& map, Shader& lightingShader, const MapMaterials& map_materials);
-
-// Bomb Draw Function
-void DrawBomb(Bomb& bomb, Map& map, GLfloat currentTime, Shader& lightingShader, Model& bombModel, Shader& modelLoadingShader);
-void DrawFire(Bomb& bomb, Map& map, GLfloat currentTime, Model& fireModel, Shader& skeletalAnimShader);
-void DrawDoor(const Map& map, Model& hatchModel, Shader& modelLoadingShader);
 
 void SelectAnimation(Animator& animator, AnimationsSet& animations);
 
@@ -101,15 +68,22 @@ GLfloat lastY = HEIGHT / 2.0;
 bool keys[1024];
 bool firstMouse = true;
 
-enum CameraMode { MODE_FREE, MODE_FIRST_PERSON, MODE_SIDE_SCROLL };
+// Camera modes
+enum CameraMode {
+  MODE_FREE,
+  MODE_FIRST_PERSON,
+  MODE_SIDE_SCROLL
+};
+
+// Initialize the camera mode in SCROLL by default
 CameraMode currentCameraMode = MODE_SIDE_SCROLL;
 
 // Map dimensions
 const int ROWS = 11, COLS = 29;
-
 const float half_rows = (ROWS + 1) / 2.0f;
 const float half_cols = (COLS + 1) / 2.0f;
 
+// Player state flags
 bool moving = false;
 bool playerIsAlive = true;
 bool playerWon = false;
@@ -261,25 +235,9 @@ int main() {
   glEnableVertexAttribArray(2);
   glBindVertexArray(0);
 
-  // Materials and textures
-  // Texture loading
-  GLuint ground_diff  = LoadTexture2D("images/ground_diffuse.png");
-  GLuint ground_rough = LoadTexture2D("images/ground_rough.png");
-  GLuint ground_ao    = LoadTexture2D("images/ground_ao.png");
-  // Wall PBR maps
-  GLuint wall_diff    = LoadTexture2D("images/wall_diffuse.png");
-  GLuint wall_rough   = LoadTexture2D("images/wall_rough.png");
-  GLuint wall_ao      = LoadTexture2D("images/wall_diffuse.png");
-  // Brick PBR maps
-  GLuint brick_diff  = LoadTexture2D("images/brick_diffuse.png"); // Destructible brick texture
-  GLuint brick_rough = LoadTexture2D("images/brick_rough.png");
-  GLuint brick_ao    = LoadTexture2D("images/brick_ao.png");
-
-  // Material
-  // wall_rough se usa como specular: superficies poco rugosas = más especular
-  Material ground_mat = {ground_diff,    ground_rough, ground_ao, 16.0f, 29.0f,  11.0f};
-  Material wall_mat   = {wall_diff,      wall_rough,  wall_ao,  64.0f, 0.5f,  0.5f};
-  Material brick_mat  = {brick_diff,     brick_rough, brick_ao, 16.0f, 0.5f,  0.5f};
+  // Instantiate Drawer and initialize materials
+  Drawer renderer(lightingShader, skeletalAnimShader, modelLoadingShader);
+  renderer.InitMapMaterials();
 
   // Configuring lightingShader
   lightingShader.use();
@@ -323,12 +281,6 @@ int main() {
   // Spawning enemies
   std::vector<Enemy> enemies = Enemy::SpawnEnemies(map, 3, 5);
 
-  // Set map assets for drawing
-  MapMaterials map_materials;
-  map_materials.ground_mat = ground_mat;
-  map_materials.wall_mat = wall_mat;
-  map_materials.brick_mat = brick_mat;
-
   // Player
   // The initial position is in the secure zone map(0,0)
   Player bomberman(glm::vec3(-half_cols + 1, -0.49f, -half_rows + 1), glm::vec2(0.0f, 1.0f));
@@ -342,8 +294,10 @@ int main() {
                                           0.1f,
                                           100.0f);
 
-  // Game loop
+  // Previous mode to control the camera change
   CameraMode prevCameraMode = currentCameraMode;
+
+  // Game loop
   while (!glfwWindowShouldClose(window)) {
     // Calculate deltatime of current frame
     GLfloat currentFrame = glfwGetTime();
@@ -359,7 +313,7 @@ int main() {
 
     for (auto it = enemies.begin(); it != enemies.end(); ) {
       it->Update(deltaTime, map, player_position);
-      // Eliminar del vector solo cuando la animacion de muerte termino (escala = 0)
+      // Delete from vector only when dead animation ends (scale 0)
       if (it->getIsDead() && it->getDeathScale() <= 0.0f) {
         it = enemies.erase(it);
       } else {
@@ -367,7 +321,7 @@ int main() {
       }
     }
 
-    // Update Animation
+    // Update keyframe animations
     animator.UpdateAnimation(deltaTime);
     fire_animator.UpdateAnimation(deltaTime);
 
@@ -377,15 +331,17 @@ int main() {
 
     lightingShader.use();
 
-    // Detectar transicion de modo de camara
+    // Detect camera mode transition
     if (currentCameraMode != prevCameraMode) {
       if (currentCameraMode == MODE_FREE) {
-        // Centrada horizontal y verticalmente mirando hacia abajo
-        camera.setPosition(glm::vec3(0.0f, 18.0f, 0.0f));
-        camera.setYawPitch(-90.0f, -89.0f);
+        camera.setPosition(glm::vec3(0.0f, 11.0f, 7.8f)); // Starts in pseudo-isometric position
+        camera.setYawPitch(-90.0f, -60.0f);
       } else if (currentCameraMode == MODE_FIRST_PERSON) {
-        // Preservar el yaw actual (la direccion en que mira), forzar pitch=0 (horizonte)
-        camera.setYawPitch(camera.getYaw(), 0.0f);
+        // Sync yaw to current player orientation
+        glm::vec3 playerDir = bomberman.getOrientation() * glm::vec3(0.0f, 0.0f, 1.0f);
+        GLfloat targetYaw = glm::degrees(atan2(playerDir.z, playerDir.x));
+        
+        camera.setYawPitch(targetYaw, 0.0f);
       }
       prevCameraMode = currentCameraMode;
     }
@@ -403,48 +359,22 @@ int main() {
     lightingShader.setVec3("viewPos", camera.GetPosition());
     glBindVertexArray(VAO);
 
-    // BOMB POINT LIGHT ------
-    bool bombActive = bomb.getBombState();
-    float bombBlinkScale = sin(currentFrame * 6.0f) * 0.05f;
-    // La intensidad de la luz oscila igual que la escala de la bomba (0.0 a 1.0)
-    float bombLightIntensity = 0.1f + bombBlinkScale * 10.0f; // base 0.5, pico ~1.0
-    bombLightIntensity = glm::clamp(bombLightIntensity, 0.0f, 1.2f);
-
-    lightingShader.setBool("bombLightActive", bombActive);
-    if (bombActive) {
-      glm::vec3 bpos = bomb.getBombPosition() + glm::vec3(0.0f, 0.5f, 0.0f);
-      lightingShader.setVec3("bombLight.position", bpos);
-      lightingShader.setFloat("bombLight.constant",  1.0f);
-      lightingShader.setFloat("bombLight.linear",    0.35f);
-      lightingShader.setFloat("bombLight.quadratic", 0.44f);
-      lightingShader.setVec3("bombLight.ambient",  bombLightIntensity * 0.3f, bombLightIntensity * 0.15f, 0.0f);
-      lightingShader.setVec3("bombLight.diffuse",  bombLightIntensity * 1.0f, bombLightIntensity * 0.5f,  0.0f);
-      lightingShader.setVec3("bombLight.specular", bombLightIntensity * 0.5f, bombLightIntensity * 0.25f, 0.0f);
-    }
-
-    // Fire point light for walls/floor
-    bool fireActive = bomb.isFireActive();
-    lightingShader.setBool("fireLightActive", fireActive);
-    if (fireActive) {
-      glm::vec3 fpos = bomb.getBombPosition() + glm::vec3(0.0f, 0.3f, 0.0f);
-      lightingShader.setVec3("fireLight.position",  fpos);
-      lightingShader.setFloat("fireLight.constant",  1.0f);
-      lightingShader.setFloat("fireLight.linear",    0.09f);
-      lightingShader.setFloat("fireLight.quadratic", 0.032f);
-      lightingShader.setVec3("fireLight.ambient",   0.8f,  0.3f,  0.0f);
-      lightingShader.setVec3("fireLight.diffuse",   2.5f,  1.0f,  0.0f);
-      lightingShader.setVec3("fireLight.specular",  1.0f,  0.5f,  0.0f);
-    }
+    // UPDATE LIGHTS ------
+    // Updates dynamic light positions and intensities for all shaders
+    renderer.SetupLights(bomb, currentFrame);
 
     // MAP ------
-    DrawMap(map, lightingShader, map_materials);
+    // Draws the static map grid including floors, walls, and pillars
+    renderer.DrawMap(map);
 
     // BOMBS ------
-    DrawBomb(bomb, map, currentFrame, lightingShader, bombModel, modelLoadingShader);
+    // Renders the bomb model with an accelerating blinking effect
+    renderer.DrawBomb(bomb, map, currentFrame, bombModel);
 
     // DOOR ------
+    // Draws the exit hatch when it is revealed on the map
     if (map.hasDoorRevealed()) {
-      DrawDoor(map, hatchModel, modelLoadingShader);
+      renderer.DrawDoor(map, hatchModel);
     }
 
     // Check if the player dies from fire
@@ -485,6 +415,7 @@ int main() {
 
 
     // ROBOT ------
+    // Renders the main player model and handles its bone animations
     skeletalAnimShader.use();
 
     // Send uniforms
@@ -492,152 +423,22 @@ int main() {
     skeletalAnimShader.setMat4("projection", projection);
     skeletalAnimShader.setVec3("viewPos", camera.GetPosition());
 
-    // Fire point light (illuminates the robot when fire is active)
-    skeletalAnimShader.setBool("fireLightActive", fireActive);
-    if (fireActive) {
-      glm::vec3 fpos = bomb.getBombPosition() + glm::vec3(0.0f, 0.3f, 0.0f);
-      skeletalAnimShader.setVec3("fireLight.position",  fpos);
-      skeletalAnimShader.setFloat("fireLight.constant",  1.0f);
-      skeletalAnimShader.setFloat("fireLight.linear",    0.14f);
-      skeletalAnimShader.setFloat("fireLight.quadratic", 0.07f);
-      skeletalAnimShader.setVec3("fireLight.ambient",   0.6f,  0.25f, 0.0f);
-      skeletalAnimShader.setVec3("fireLight.diffuse",   2.0f,  0.8f,  0.0f);
-      skeletalAnimShader.setVec3("fireLight.specular",  1.0f,  0.5f,  0.0f);
-    }
+    renderer.DrawRobot(bomberman, robot, animator, currentCameraMode == MODE_FIRST_PERSON);
 
-    // Bomb point light (illuminates the robot and while the bomb is ticking)
-    skeletalAnimShader.setBool("bombLightActive", bombActive);
-    if (bombActive) {
-      glm::vec3 bpos = bomb.getBombPosition() + glm::vec3(0.0f, 0.5f, 0.0f);
-      skeletalAnimShader.setVec3("bombLight.position",  bpos);
-      skeletalAnimShader.setFloat("bombLight.constant",  1.0f);
-      skeletalAnimShader.setFloat("bombLight.linear",    0.35f);
-      skeletalAnimShader.setFloat("bombLight.quadratic", 0.44f);
-      skeletalAnimShader.setVec3("bombLight.ambient",  bombLightIntensity * 0.3f, bombLightIntensity * 0.15f, 0.0f);
-      skeletalAnimShader.setVec3("bombLight.diffuse",  bombLightIntensity * 1.0f, bombLightIntensity * 0.5f,  0.0f);
-      skeletalAnimShader.setVec3("bombLight.specular", bombLightIntensity * 0.5f, bombLightIntensity * 0.25f, 0.0f);
-    }
-
-    // Send bones matrices
-    auto transforms = animator.GetFinalBoneMatrices();
-    for (size_t i = 0; i < transforms.size(); ++i)
-      skeletalAnimShader.setMat4("finalBonesMatrices[" + std::to_string(i) + "]", transforms[i]);
-
-    if (currentCameraMode != MODE_FIRST_PERSON) {
-      glm::mat4 model(1.0f);
-      model = glm::translate(model, player_position) *
-              glm::toMat4(bomberman.getOrientation());
-      model = glm::scale(model, glm::vec3(0.3f, 0.3f, 0.3f));
-      skeletalAnimShader.setMat4("model", model);
-      skeletalAnimShader.setInt("isFireModel", 0);
-      skeletalAnimShader.setFloat("shininess", 96.0f); // metal robot
-      robot.Draw(skeletalAnimShader);
-    }
-
-    // Send bones matrices for the Fire
-    transforms = fire_animator.GetFinalBoneMatrices();
-    for (size_t i = 0; i < transforms.size(); ++i)
-      skeletalAnimShader.setMat4("finalBonesMatrices[" + std::to_string(i) + "]", transforms[i]);
-
-    DrawFire(bomb, map, currentFrame, fire, skeletalAnimShader);
+    // FIRE ------
+    // Renders the cross-shaped fire explosion particles
+    renderer.DrawFire(bomb, map, currentFrame, fire, fire_animator);
 
     // ENEMIES ------
+    // Draws all enemies with their respective movement and death animations
     modelLoadingShader.use();
 
     // Send uniforms
     modelLoadingShader.setMat4("view", view);
     modelLoadingShader.setMat4("projection", projection);
     modelLoadingShader.setVec3("viewPos", camera.GetPosition());
-    modelLoadingShader.setBool("bombLightActive", bombActive);
 
-    if (bombActive) {
-      glm::vec3 bpos = bomb.getBombPosition() + glm::vec3(0.0f, 0.5f, 0.0f);
-      modelLoadingShader.setVec3("bombLight.position", bpos);
-      modelLoadingShader.setFloat("bombLight.constant",  1.0f);
-      modelLoadingShader.setFloat("bombLight.linear",    0.35f);
-      modelLoadingShader.setFloat("bombLight.quadratic", 0.44f);
-      modelLoadingShader.setVec3("bombLight.ambient",  bombLightIntensity * 0.3f, bombLightIntensity * 0.15f, 0.0f);
-      modelLoadingShader.setVec3("bombLight.diffuse",  bombLightIntensity * 1.0f, bombLightIntensity * 0.5f,  0.0f);
-      modelLoadingShader.setVec3("bombLight.specular", bombLightIntensity * 0.5f, bombLightIntensity * 0.25f, 0.0f);
-    }
-
-    // Fire point light (illuminates enemies and other objects)
-    modelLoadingShader.setBool("fireLightActive", fireActive);
-    if (fireActive) {
-      glm::vec3 fpos = bomb.getBombPosition() + glm::vec3(0.0f, 0.3f, 0.0f);
-      modelLoadingShader.setVec3("fireLight.position",  fpos);
-      modelLoadingShader.setFloat("fireLight.constant",  1.0f);
-      modelLoadingShader.setFloat("fireLight.linear",    0.14f);
-      modelLoadingShader.setFloat("fireLight.quadratic", 0.07f);
-      modelLoadingShader.setVec3("fireLight.ambient",   0.6f,  0.25f, 0.0f);
-      modelLoadingShader.setVec3("fireLight.diffuse",   2.0f,  0.8f,  0.0f);
-      modelLoadingShader.setVec3("fireLight.specular",  1.0f,  0.5f,  0.0f);
-    }
-
-    for (const auto &enemy : enemies) {
-      glm::mat4 model(1.0f);
-      
-      float finalScale = 0.4f;
-      float yOffset = 0.0f;
-
-      if (enemy.getType() == EnemyType::BALLOM) {
-          // Ballom breathing and up/down translation animation
-          float inflationSpeed = 2.0f;
-          float inflationIntensity = 0.05f;
-          finalScale = enemy.getIsDead() ? enemy.getDeathScale() : (0.4f + sin(currentFrame * inflationSpeed) * inflationIntensity);
-          
-          float bobbingSpeed = 2.0f; 
-          float bobbingIntensity = 0.15f;
-          // Death animation
-          float bobbing = enemy.getIsDead() ? 0.0f : abs(sin(currentFrame * bobbingSpeed)) * bobbingIntensity;
-          
-          yOffset = 0.55f + bobbing;
-      } else {
-          // Onil
-          finalScale = enemy.getIsDead() ? enemy.getDeathScale() : 0.4f;
-          yOffset = 0.3f;
-      }
-       
-      glm::vec3 drawPosition = enemy.getPosition() + glm::vec3(0.0f, yOffset, 0.0f);
-      
-      model = glm::translate(model, drawPosition) * glm::toMat4(enemy.getOrientation()); 
-
-      // Adjust scale as needed for the imported models
-      model = glm::scale(model, glm::vec3(finalScale, finalScale, finalScale));
-      
-      // Fix predefined model orientation (y -90)
-      model = glm::rotate(model, glm::radians(-90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-      
-      modelLoadingShader.setMat4("model", model);
-      if (enemy.getType() == EnemyType::BALLOM) {
-        modelLoadingShader.setFloat("shininess", 64.0f); // latex/balloon — glossy
-        ballomModel.Draw(modelLoadingShader);
-      } else {
-        modelLoadingShader.setFloat("shininess", 8.0f);  // Onil — matte
-        // Dibujar el cuerpo
-        onilCuerpoModel.Draw(modelLoadingShader);
-
-        // Calcular la oscilacion de los pies
-        float swingAngle = 0.0f;
-        if (enemy.getIsMoving() && !enemy.getIsDead()) {
-            float walkSpeed = 6.0f;
-            float walkIntensity = 0.5f; // en radianes
-            swingAngle = sin(currentFrame * walkSpeed) * walkIntensity;
-        }
-
-        // Pie Izquierdo
-        glm::mat4 leftFootModel = model;
-        leftFootModel = glm::rotate(leftFootModel, swingAngle, glm::vec3(0.0f, 0.0f, 1.0f));
-        modelLoadingShader.setMat4("model", leftFootModel);
-        onilPieIzqModel.Draw(modelLoadingShader);
-
-        // Pie Derecho (fase opuesta, multiplicamos por -1)
-        glm::mat4 rightFootModel = model;
-        rightFootModel = glm::rotate(rightFootModel, -swingAngle, glm::vec3(0.0f, 0.0f, 1.0f));
-        modelLoadingShader.setMat4("model", rightFootModel);
-        onilPieDerModel.Draw(modelLoadingShader);
-      }
-    }
+    renderer.DrawEnemies(enemies, currentFrame, ballomModel, onilCuerpoModel, onilPieIzqModel, onilPieDerModel);
 
     glBindVertexArray(0);
 
@@ -649,311 +450,6 @@ int main() {
   glfwTerminate();
 
   return 0;
-}
-
-GLuint LoadTexture2D(const char *path) {
-  GLuint texture;
-  glGenTextures(1, &texture);
-  glBindTexture(GL_TEXTURE_2D, texture);
-
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-  int textureWidth, textureHeight, nrChannels;
-
-  // stbi_load always outputs 8-bit (converts 16-bit PNGs automatically).
-  // We request 0 (keep source channels) but stbi normalises to 8-bit output.
-  // For gray+alpha (2-channel) maps we force 1 channel so OpenGL accepts it.
-  unsigned char *image = stbi_load(path, &textureWidth, &textureHeight, &nrChannels, 0);
-
-  if (!image) {
-    std::cout << "Failed to load texture: " << path << std::endl;
-    glDeleteTextures(1, &texture);
-    return 0;
-  }
-
-  GLenum internalFormat, dataFormat;
-  if (nrChannels == 1) {
-    internalFormat = GL_R8;
-    dataFormat     = GL_RED;
-  } else if (nrChannels == 2) {
-    // gray+alpha — treat as single-channel (drop alpha) by reloading forced to 1
-    stbi_image_free(image);
-    image = stbi_load(path, &textureWidth, &textureHeight, &nrChannels, 1);
-    internalFormat = GL_R8;
-    dataFormat     = GL_RED;
-  } else if (nrChannels == 3) {
-    internalFormat = GL_RGB8;
-    dataFormat     = GL_RGB;
-  } else if (nrChannels == 4) {
-    internalFormat = GL_RGBA8;
-    dataFormat     = GL_RGBA;
-  } else {
-    std::cout << "Unsupported channel count (" << nrChannels << ") for: " << path << std::endl;
-    stbi_image_free(image);
-    glDeleteTextures(1, &texture);
-    return 0;
-  }
-
-  glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, textureWidth, textureHeight,
-               0, dataFormat, GL_UNSIGNED_BYTE, image);
-  glGenerateMipmap(GL_TEXTURE_2D);
-
-  stbi_image_free(image);
-  return texture;
-}
-
-GLuint CreateSolidTexture(unsigned char r, unsigned char g, unsigned char b, unsigned char a) {
-    GLuint texture;
-    unsigned char color[] = { r, g, b, a };
-
-    glGenTextures(1, &texture);
-    glBindTexture(GL_TEXTURE_2D, texture);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, color);
-    glBindTexture(GL_TEXTURE_2D, 0);
-
-    return texture;
-}
-
-void ApplyTexture(const Material& material, Shader& lightingShader) {
-      // Bind diffuse map
-      glActiveTexture(GL_TEXTURE0);
-      glBindTexture(GL_TEXTURE_2D, material.diffuse);
-
-      // Bind specular map
-      glActiveTexture(GL_TEXTURE1);
-      glBindTexture(GL_TEXTURE_2D, material.specular);
-
-      // Bind AO map
-      glActiveTexture(GL_TEXTURE2);
-      glBindTexture(GL_TEXTURE_2D, material.ao);
-
-      lightingShader.setFloat("material.shininess", material.shininess);
-      lightingShader.setVec2("uvScale", material.uvScaleX, material.uvScaleY);
-  }
-
-void DrawMap(const Map& map, Shader& lightingShader, const MapMaterials& map_materials) {
-  // FLOOR ------
-  DrawFloor(lightingShader, map_materials.ground_mat);
-
-  // WALLS ------
-  DrawWalls(lightingShader, map_materials.wall_mat);
-
-  // MAP OBJECTS ------
-  DrawMapBlocks(map, lightingShader, map_materials);
-}
-
-void DrawFloor(Shader& lightingShader, const Material& ground_mat) {
-  glm::mat4 model(1.0f);
-
-  ApplyTexture(ground_mat, lightingShader);
-
-  // Model transformations
-  model = glm::scale(model, glm::vec3(COLS, 1.0f, ROWS));
-  model = glm::translate(model, glm::vec3(0.0f, -1.0f, 0.0f));
-  lightingShader.setMat4("model", model);
-
-  // Draw floor
-  glDrawArrays(GL_TRIANGLES, 30, 6);
-}
-
-void DrawWalls(Shader& lightingShader, const Material& wall_mat) {
-  glm::mat4 model(1.0f);
-
-  ApplyTexture(wall_mat, lightingShader);
-
-  for (float x = -half_cols; x <= half_cols; x += 1.0f) {
-    model = glm::mat4(1.0f); // Reset model matrix
-    model = glm::translate(model, glm::vec3(x, 0.0f, half_rows));
-    lightingShader.setMat4("model", model);
-    glDrawArrays(GL_TRIANGLES, 0, 36);
-
-    model = glm::mat4(1.0f); // Reset model matrix
-    model = glm::translate(model, glm::vec3(x, 0.0f, -half_rows));
-    lightingShader.setMat4("model", model);
-    glDrawArrays(GL_TRIANGLES, 0, 36);
-  }
-
-  // Draw side walls
-  for (float z = -half_rows + 1.0f; z <= half_rows - 1.0f; z += 1.0f) {
-    // Reset model transformations
-    model = glm::mat4(1.0f);
-    model = glm::translate(model, glm::vec3(half_cols, 0.0f, z));
-    model = glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-    lightingShader.setMat4("model", model);
-    glDrawArrays(GL_TRIANGLES, 0, 36);
-
-    // Reset model transformations
-    model = glm::mat4(1.0f);
-    model = glm::translate(model, glm::vec3(-half_cols, 0.0f, z));
-    model = glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-    lightingShader.setMat4("model", model);
-    glDrawArrays(GL_TRIANGLES, 0, 36);
-  }
-}
-
-void DrawMapBlocks(const Map& map, Shader& lightingShader, const MapMaterials& map_materials) {
-  glm::mat4 model(1.0f);
-
-  for (int row = 0; row < ROWS; row++) {
-    for (int col = 0; col < COLS; col++) {
-      int cell = map.getCell(row, col);
-      if (cell == 0 || cell == 5 || cell == 6 || cell == 7 || cell == 8)
-        continue;
-
-      float xPos = col - (half_cols - 1);
-      float zPos = row - (half_rows - 1);
-
-      if (cell == 1) {
-        // Indestructible pillar
-        ApplyTexture(map_materials.wall_mat, lightingShader);
-      } else if (cell >= 2 && cell <= 4) {
-        // Destructible brick (including hidden exit and power-ups)
-        ApplyTexture(map_materials.brick_mat, lightingShader);
-      }
-
-      model = glm::mat4(1.0f);
-      model = glm::translate(model, glm::vec3(xPos, 0.0f, zPos));
-      lightingShader.setMat4("model", model);
-      glDrawArrays(GL_TRIANGLES, 0, 36);
-    }
-  }
-}
-
-void DrawBomb(Bomb& bomb, Map& map, GLfloat currentTime, Shader& lightingShader, Model& bombModel, Shader& modelLoadingShader) {
-    if (bomb.getBombState() == true) // If the bomb is activated
-    {
-      float blinkSpeed = 6.0f;
-      float blinkIntensity = 0.05f;
-
-      float blinkScale = sin(currentTime * blinkSpeed) * blinkIntensity;
-      float fianlBlinkScale = 0.15f + (blinkScale * 0.5f); //default scale = 0.9f
-      
-      glm::vec3 bomb_position = bomb.getBombPosition();
-      if (currentTime >= bomb.getBombExpiration()) { // If the bomb explodes
-        bomb.expireBomb(bomb_position, map, currentTime);
-      }
-
-      modelLoadingShader.use();
-      glm::mat4 model(1.0f);
-      model = glm::translate(model, bomb_position);
-      model = glm::scale(model, glm::vec3(fianlBlinkScale, fianlBlinkScale, fianlBlinkScale));
-      modelLoadingShader.setMat4("model", model);
-      bombModel.Draw(modelLoadingShader);
-      lightingShader.use();
-    }
-}
-
-void DrawFire(Bomb& bomb, Map& map, GLfloat currentTime, Model& fireModel, Shader& skeletalAnimShader) {
-
-    if (bomb.isFireActive() == true) // If the bomb already exploded
-    {
-      glm::vec3 firePosition = bomb.getBombPosition() - glm::vec3(0.0f, 0.25f, 0.0f);
-      MapIndices grid_position = map.toMapIndices(firePosition);
-
-      if (currentTime >= bomb.getFireExpiration()) { // Fire end
-        bomb.putOutFire(grid_position, map);
-      }
-
-      glm::vec3 center = firePosition + glm::vec3(0.0f, 0.45f, 0.0f); // elevated gradient center
-      skeletalAnimShader.setInt("isFireModel", 1);
-
-      // Center flame
-      glm::mat4 model(1.0f);
-      model = glm::translate(model, firePosition);
-      model = glm::scale(model, glm::vec3(0.04f, 0.04f, 0.04f));
-      skeletalAnimShader.setMat4("model", model);
-      skeletalAnimShader.setVec3("fireCenter", center);
-      fireModel.Draw(skeletalAnimShader);
-
-      // Cross flames X axis
-      {
-        glm::vec3 posX = firePosition + glm::vec3( 1.0f, 0.0f, 0.0f);
-        glm::vec3 negX = firePosition + glm::vec3(-1.0f, 0.0f, 0.0f);
-        bool posXfree = map.getCell(map.toMapIndices(posX).row, map.toMapIndices(posX).col) == 6;
-        bool negXfree = map.getCell(map.toMapIndices(negX).row, map.toMapIndices(negX).col) == 6;
-
-        if (posXfree) {
-          // Right half centered at +0.5 on X
-          model = glm::mat4(1.0f);
-          model = glm::translate(model, firePosition + glm::vec3(0.5f, 0.0f, 0.0f));
-          model = glm::scale(model, glm::vec3(0.04f * 3.0f, 0.04f, 0.04f));
-          skeletalAnimShader.setMat4("model", model);
-          skeletalAnimShader.setVec3("fireCenter", center);
-          fireModel.Draw(skeletalAnimShader);
-        }
-        if (negXfree) {
-          // Left half centered at -0.5 on X
-          model = glm::mat4(1.0f);
-          model = glm::translate(model, firePosition + glm::vec3(-0.5f, 0.0f, 0.0f));
-          model = glm::scale(model, glm::vec3(0.04f * 3.0f, 0.04f, 0.04f));
-          skeletalAnimShader.setMat4("model", model);
-          skeletalAnimShader.setVec3("fireCenter", center);
-          fireModel.Draw(skeletalAnimShader);
-        }
-      }
-
-      // Cross flames Z axis
-      {
-        glm::vec3 posZ = firePosition + glm::vec3(0.0f, 0.0f,  1.0f);
-        glm::vec3 negZ = firePosition + glm::vec3(0.0f, 0.0f, -1.0f);
-        bool posZfree = map.getCell(map.toMapIndices(posZ).row, map.toMapIndices(posZ).col) == 6;
-        bool negZfree = map.getCell(map.toMapIndices(negZ).row, map.toMapIndices(negZ).col) == 6;
-
-        if (posZfree) {
-          model = glm::mat4(1.0f);
-          model = glm::translate(model, firePosition + glm::vec3(0.0f, 0.0f, 0.5f));
-          model = glm::scale(model, glm::vec3(0.04f, 0.04f, 0.04f * 3.0f));
-          skeletalAnimShader.setMat4("model", model);
-          skeletalAnimShader.setVec3("fireCenter", center);
-          fireModel.Draw(skeletalAnimShader);
-        }
-        if (negZfree) {
-          model = glm::mat4(1.0f);
-          model = glm::translate(model, firePosition + glm::vec3(0.0f, 0.0f, -0.5f));
-          model = glm::scale(model, glm::vec3(0.04f, 0.04f, 0.04f * 3.0f));
-          skeletalAnimShader.setMat4("model", model);
-          skeletalAnimShader.setVec3("fireCenter", center);
-          fireModel.Draw(skeletalAnimShader);
-        }
-      }
-
-      // Restore state
-      skeletalAnimShader.setInt("isFireModel", 0);
-    }
-}
-
-// Draws the new hatch door model at every map cell with value 7 (door revealed)
-void DrawDoor(const Map& map, Model& hatchModel, Shader& modelLoadingShader) {
-    modelLoadingShader.use();
-    modelLoadingShader.setFloat("shininess", 32.0f);
-
-    for (int row = 0; row < map.getTotalRows(); row++) {
-        for (int col = 0; col < map.getTotalCols(); col++) {
-            if (map.getCell(row, col) != 7)
-                continue;
-
-            float xPos = col - (half_cols - 1);
-            float zPos = row - (half_rows - 1);
-            
-            // Adjust position to be on the floor
-            glm::vec3 doorWorldPos(xPos, -0.48f, zPos);
-
-            glm::mat4 model(1.0f);
-            model = glm::translate(model, doorWorldPos);
-            // Increased to 0.0008f to make the hatch radius larger.
-            model = glm::scale(model, glm::vec3(0.0009f, 0.0009f, 0.0009f));
-            
-            modelLoadingShader.setMat4("model", model);
-            hatchModel.Draw(modelLoadingShader);
-        }
-    }
 }
 
 // Moves/alters the camera positions based on user input
@@ -969,27 +465,20 @@ void DoMovement(Player& bomberman, Map& map, std::vector<Enemy>& enemies, Bomb& 
   // Camera controls
   if (currentCameraMode == MODE_FREE) {
     if (keys[GLFW_KEY_UP]) {
-      camera.ProcessKeyboard(FORWARD, deltaTime);
+      camera.ProcessKeyboard(FORWARD, deltaTime, half_cols, half_rows);
     }
 
     if (keys[GLFW_KEY_DOWN]) {
-      camera.ProcessKeyboard(BACKWARD, deltaTime);
+      camera.ProcessKeyboard(BACKWARD, deltaTime, half_cols, half_rows);
     }
 
     if (keys[GLFW_KEY_LEFT]) {
-      camera.ProcessKeyboard(LEFT, deltaTime);
+      camera.ProcessKeyboard(LEFT, deltaTime, half_cols, half_rows);
     }
 
     if (keys[GLFW_KEY_RIGHT]) {
-      camera.ProcessKeyboard(RIGHT, deltaTime);
+      camera.ProcessKeyboard(RIGHT, deltaTime, half_cols, half_rows);
     }
-
-    // Limit camera position
-    glm::vec3 camPos = camera.GetPosition();
-    camPos.x = glm::clamp(camPos.x, -half_cols - 5.0f, half_cols + 5.0f);
-    camPos.y = glm::clamp(camPos.y, 0.0f, 20.0f);
-    camPos.z = glm::clamp(camPos.z, -half_rows - 5.0f, half_rows + 5.0f);
-    camera.setPosition(camPos);
   }
 
   // Player controls

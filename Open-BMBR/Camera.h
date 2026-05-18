@@ -57,7 +57,7 @@ public:
 	}
 
 	// Processes input received from any keyboard-like input system. Accepts input parameter in the form of camera defined ENUM (to abstract it from windowing systems)
-	void ProcessKeyboard(Camera_Movement direction, GLfloat deltaTime)
+	void ProcessKeyboard(Camera_Movement direction, GLfloat deltaTime, float half_cols, float half_rows)
 	{
 		GLfloat velocity = this->movementSpeed * deltaTime;
 
@@ -80,6 +80,11 @@ public:
 		{
 			this->position += this->right * velocity;
 		}
+
+    // Limit camera position
+    this->position.x = glm::clamp(this->position.x, -half_cols - 5.0f, half_cols + 5.0f);
+    this->position.y = glm::clamp(this->position.y, 0.0f, 20.0f);
+    this->position.z = glm::clamp(this->position.z, -half_rows - 5.0f, half_rows + 5.0f);
 	}
 
 	// Processes input received from a mouse input system. Expects the offset value in both the x and y direction.
@@ -152,17 +157,17 @@ public:
 		this->updateCameraVectors();
 	}
 
+	// Pseudo-isometric camera
 	void UpdateSideScrollPosition(glm::vec3 targetPosition)
 	{
-		// Limitar el movimiento de la camara a las 4tas columnas (X = -7.0f, X = 7.0f)
+		// Limit movement to the four columns (X = -7.0f, X = 7.0f)
 		float cameraX = glm::clamp(targetPosition.x, -7.0f, 7.0f);
 		
-		// Para vista desde arriba: Z = 0.0f (centrado encima) y Y = 15.0f (más alto)
-		this->position = glm::vec3(cameraX, 15.0f, 0.0f);
-		this->yaw = -90.0f;
+		this->position = glm::vec3(cameraX, 11.0f, 7.8f);
 		
-		// Pitch cercano a -90.0f mira directamente hacia abajo (usa -89.0f para evitar errores visuales)
-		this->pitch = -89.0f;
+		// Fix pitch and yaw
+		this->pitch = -60.0f; // 60 deg
+		this->yaw = -90.0f; // -90 deg
 		this->updateCameraVectors();
 	}
 
