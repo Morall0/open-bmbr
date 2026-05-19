@@ -6,3 +6,5 @@ x64/
 Open-BMBR/x64/
 Main
 .editorconfig
+*.o
+*.d
