@@ -90,11 +90,13 @@ void main()
 {
     // Resolve base color from texture or material
     vec3 baseColor;
+    float alpha = 1.0;
     if (useTexture == 1) {
         vec4 texColor = texture(texture_diffuse1, TexCoords);
-        if (texColor.a < 0.1)
-            discard;
+        if (texColor.a < 0.01)
+            discard;          // fully invisible pixels: skip
         baseColor = texColor.rgb;
+        alpha     = texColor.a; // keep semi-transparent alpha
     } else {
         baseColor = diffuseColor;
     }
@@ -141,5 +143,5 @@ void main()
     if (fireLightActive)
         result += CalcPointLight(fireLight, norm, FragPos, viewDir, baseDiffuse, baseSpecular);
 
-    FragColor = vec4(result, 1.0);
+    FragColor = vec4(result, alpha);
 }

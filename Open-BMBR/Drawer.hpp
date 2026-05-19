@@ -22,17 +22,18 @@ const float HALF_COLS = (MAP_COLS + 1) / 2.0f;
 // Structure for material
 struct Material {
   GLuint diffuse;
-  GLuint specular;
-  GLuint ao;
-  float shininess = 16.0f;
-  float uvScaleX = 1.0f;
-  float uvScaleY = 1.0f;
+  float  ambientStrength = 0.2f;
+  float  specularStrength = 0.1f;
+  float  shininess = 16.0f;
+  float  uvScaleX = 1.0f;
+  float  uvScaleY = 1.0f;
 };
 
 // Structure for Map Drawing functions
 struct MapMaterials {
   Material ground_mat;
   Material wall_mat;
+  Material hardblock_mat;
   Material brick_mat;
 };
 
@@ -45,7 +46,7 @@ class Drawer {
 
     // Static objects drawing
     void DrawMap(const Map& map);
-    void DrawDoor(const Map& map, Model& hatchModel);
+    void DrawDoor(const Map& map, Model& doorBaseModel, Model& doorModel, Animator& animator, bool locked);
 
     // Dynamic objects drawing
     void DrawBomb(Bomb& bomb, Map& map, GLfloat currentTime, Model& bombModel);
@@ -53,7 +54,7 @@ class Drawer {
 
     // Characters drawing
     void DrawRobot(Player& bomberman, Model& robot, Animator& animator, bool isFirstPerson);
-    void DrawEnemies(const std::vector<Enemy>& enemies, GLfloat currentFrame, Model& ballomModel, Model& onilCuerpoModel, Model& onilPieIzqModel, Model& onilPieDerModel);
+    void DrawEnemies(const std::vector<Enemy>& enemies, GLfloat currentFrame, Model& ballomModel, Model& onilBodyModel, Model& onilLeftFtModel, Model& onilRightFtModel);
 
     // Light Updates
     void SetupLights(Bomb& bomb, GLfloat currentFrame);
@@ -64,6 +65,8 @@ class Drawer {
     Shader& modelLoadingShader;
 
     MapMaterials map_materials;
+
+    GLuint doorAlternativeTex;
 
     // Helper functions
     void DrawFloor();

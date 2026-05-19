@@ -59,7 +59,7 @@ public:
     }
 
     // render the mesh
-    void Draw(Shader &shader) 
+    void Draw(Shader &shader, GLuint alternativeTex = 0)
     {
         // pass diffuse color and texture usage flag
         glUniform3f(glGetUniformLocation(shader.ID, "diffuseColor"), diffuseColor.x, diffuseColor.y, diffuseColor.z);
@@ -87,8 +87,12 @@ public:
 
             // now set the sampler to the correct texture unit
             glUniform1i(glGetUniformLocation(shader.ID, (name + number).c_str()), i);
+
             // and finally bind the texture
-            glBindTexture(GL_TEXTURE_2D, textures[i].id);
+            if (name == "texture_diffuse" && alternativeTex != 0)
+              glBindTexture(GL_TEXTURE_2D, alternativeTex); // bind alternative texture
+            else
+              glBindTexture(GL_TEXTURE_2D, textures[i].id); // bind original model-linked texture
         }
         
         // draw mesh

@@ -215,7 +215,12 @@ int main() {
   Model onilPieIzqModel("Models/onil_pie_izquierdo.obj");
   Model onilPieDerModel("Models/onil_pie_derecho.obj");
   Model bombModel("Models/bomb.obj");
-  Model hatchModel("Models/hatch.obj");
+
+  Model doorModel("Models/exit_shield.fbx");
+  Animation door_anim("Models/exit_shield.fbx", &doorModel, 0);
+  Animator door_animator(&door_anim, true);
+
+  Model doorBaseModel("Models/exit_base.fbx");
 
   // First, set the container's VAO (and VBO)
   GLuint VBO, VAO;
@@ -324,6 +329,7 @@ int main() {
     // Update keyframe animations
     animator.UpdateAnimation(deltaTime);
     fire_animator.UpdateAnimation(deltaTime);
+    door_animator.UpdateAnimation(deltaTime);
 
     // Clear the colorbuffer
     glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
@@ -374,7 +380,8 @@ int main() {
     // DOOR ------
     // Draws the exit hatch when it is revealed on the map
     if (map.hasDoorRevealed()) {
-      renderer.DrawDoor(map, hatchModel);
+      bool locked = !enemies.empty();
+      renderer.DrawDoor(map, doorBaseModel, doorModel, door_animator, locked);
     }
 
     // Check if the player dies from fire
@@ -457,7 +464,10 @@ void DoMovement(Player& bomberman, Map& map, std::vector<Enemy>& enemies, Bomb& 
   if (!playerIsAlive || playerWon) { // Cant move if player dies or wins
     // Restart when player dies or wins
     if (keys[GLFW_KEY_R])
+    {
       restart(bomberman, map, enemies);
+      map.printMap();
+    }
     else // Movement not allowed
       return;
   }

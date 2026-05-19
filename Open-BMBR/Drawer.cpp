@@ -1,33 +1,30 @@
 #include "Drawer.hpp"
+#include "Map.hpp"
 #include "stb_image.h"
 #include <iostream>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/quaternion.hpp>
 
 Drawer::Drawer(Shader& lightingShader, Shader& skeletalAnimShader, Shader& modelLoadingShader)
-  : lightingShader(lightingShader), skeletalAnimShader(skeletalAnimShader), modelLoadingShader(modelLoadingShader) 
+  : lightingShader(lightingShader), skeletalAnimShader(skeletalAnimShader), modelLoadingShader(modelLoadingShader)
 {
 }
 
 void Drawer::InitMapMaterials() {
-  // Load map textures
-  GLuint ground_diff  = LoadTexture2D("images/grass.png");
-  GLuint ground_rough = LoadTexture2D("images/grass.png");
-  GLuint ground_ao    = LoadTexture2D("images/grass.png");
+  // Load map textures (single diffuse per material)
+  GLuint ground_diff    = LoadTexture2D("images/grass.png");
+  GLuint wall_diff      = LoadTexture2D("images/wall.png");
+  GLuint hardblock_diff = LoadTexture2D("images/hardblock.png");
+  GLuint brick_diff     = LoadTexture2D("images/brick.png");
 
-  // Wall PBR maps
-  GLuint wall_diff    = LoadTexture2D("images/hardblock.png");
-  GLuint wall_rough   = LoadTexture2D("images/hardblock.png");
-  GLuint wall_ao      = LoadTexture2D("images/hardblock.png");
+  // Alternative door texture
+  doorAlternativeTex = LoadTexture2D("images/open_portal_shield.png");
 
-  // Brick PBR maps
-  GLuint brick_diff  = LoadTexture2D("images/wall.png"); 
-  GLuint brick_rough = LoadTexture2D("images/wall.png");
-  GLuint brick_ao    = LoadTexture2D("images/wall.png");
-
-  map_materials.ground_mat = {ground_diff, ground_rough, ground_ao, 16.0f, 14.5f, 5.5f};
-  map_materials.wall_mat   = {wall_diff,   wall_rough,   wall_ao,   64.0f, 1.0f,  1.0f};
-  map_materials.brick_mat  = {brick_diff,  brick_rough,  brick_ao,  16.0f, 1.0f,  1.0f};
+  //                              diffuse        Ka     Ks    shininess  uvX    uvY
+  map_materials.ground_mat    = {ground_diff,    0.7f,  0.10f, 16.0f,  14.5f, 5.5f};
+  map_materials.wall_mat      = {wall_diff,      0.6f,  0.20f, 32.0f,   1.0f, 1.0f};
+  map_materials.hardblock_mat = {hardblock_diff, 0.6f,  0.80f, 128.0f,  1.0f, 1.0f};
+  map_materials.brick_mat     = {brick_diff,     0.65f, 0.10f, 16.0f,   1.0f, 1.0f};
 }
 
 void Drawer::SetupLights(Bomb& bomb, GLfloat currentFrame) {
@@ -130,7 +127,7 @@ void Drawer::DrawMapBlocks(const Map& map) {
       float zPos = row - (HALF_ROWS - 1);
 
       if (cell == 1) {
-        ApplyTexture(map_materials.wall_mat, lightingShader);
+        ApplyTexture(map_materials.hardblock_mat, lightingShader);
       } else if (cell >= 2 && cell <= 4) {
         ApplyTexture(map_materials.brick_mat, lightingShader);
       }
@@ -160,6 +157,7 @@ void Drawer::DrawBomb(Bomb& bomb, Map& map, GLfloat currentTime, Model& bombMode
     model = glm::translate(model, bomb_position);
     model = glm::scale(model, glm::vec3(finalBlinkScale, finalBlinkScale, finalBlinkScale));
     modelLoadingShader.setMat4("model", model);
+    modelLoadingShader.setFloat("shininess", 128.0f); // bowling-ball polish
     bombModel.Draw(modelLoadingShader);
   }
 }
@@ -245,28 +243,48 @@ void Drawer::DrawFire(Bomb& bomb, Map& map, GLfloat currentTime, Model& fireMode
   }
 }
 
-void Drawer::DrawDoor(const Map& map, Model& hatchModel) {
-  modelLoadingShader.use();
-  modelLoadingShader.setFloat("shininess", 32.0f);
+void Drawer::DrawDoor(const Map& map, Model& doorBaseModel, Model& doorModel, Animator& animator, bool locked) {
+  skeletalAnimShader.use();
+  skeletalAnimShader.setFloat("shininess", 96.0f); // holographic energy surface
 
-  for (int row = 0; row < map.getTotalRows(); row++) {
-    for (int col = 0; col < map.getTotalCols(); col++) {
-      if (map.getCell(row, col) != 7)
-        continue;
-
-      float xPos = col - (HALF_COLS - 1);
-      float zPos = row - (HALF_ROWS - 1);
-
-      glm::vec3 doorWorldPos(xPos, -0.48f, zPos);
-
-      glm::mat4 model(1.0f);
-      model = glm::translate(model, doorWorldPos);
-      model = glm::scale(model, glm::vec3(0.35f, 0.35f, 0.35f));
-      modelLoadingShader.setMat4("model", model);
-
-      hatchModel.Draw(modelLoadingShader);
-    }
+  auto transforms = animator.GetFinalBoneMatrices();
+  for (size_t i = 0; i < transforms.size(); ++i) {
+    skeletalAnimShader.setMat4("finalBonesMatrices[" + std::to_string(i) + "]", transforms[i]);
   }
+
+  MapIndices door_index = map.getDoorPosition();
+
+  float xPos = door_index.col - (HALF_COLS - 1);
+  float zPos = door_index.row - (HALF_ROWS - 1);
+
+  glm::vec3 doorWorldPos(xPos, -2.5f, zPos);
+
+  glm::mat4 model(1.0f);
+  model = glm::translate(model, doorWorldPos);
+  model = glm::scale(model, glm::vec3(0.01f, 0.01f, 0.01f));
+  skeletalAnimShader.setMat4("model", model);
+  skeletalAnimShader.setInt("isFireModel", 0);
+
+  // Enable alpha blending
+  glEnable(GL_BLEND);
+  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+  glDepthMask(GL_FALSE);
+
+  if (locked)
+    doorModel.Draw(skeletalAnimShader);
+  else
+    doorModel.Draw(skeletalAnimShader, doorAlternativeTex);
+
+  // Restore state
+  glDepthMask(GL_TRUE);
+  glDisable(GL_BLEND);
+
+  modelLoadingShader.use();
+  model = glm::mat4(1.0f);
+  model = glm::translate(model, doorWorldPos + glm::vec3(0.0f, 2.0f, 0.0f)); // Adjust the y pos to the floor
+  model = glm::scale(model, glm::vec3(0.01f, 0.01f, 0.01f));
+  modelLoadingShader.setMat4("model", model);
+  doorBaseModel.Draw(modelLoadingShader);
 }
 
 void Drawer::DrawRobot(Player& bomberman, Model& robot, Animator& animator, bool isFirstPerson) {
@@ -289,7 +307,7 @@ void Drawer::DrawRobot(Player& bomberman, Model& robot, Animator& animator, bool
   }
 }
 
-void Drawer::DrawEnemies(const std::vector<Enemy>& enemies, GLfloat currentFrame, Model& ballomModel, Model& onilCuerpoModel, Model& onilPieIzqModel, Model& onilPieDerModel) {
+void Drawer::DrawEnemies(const std::vector<Enemy>& enemies, GLfloat currentFrame, Model& ballomModel, Model& onilBodyModel, Model& onilLeftFtModel, Model& onilRightFtModel) {
   modelLoadingShader.use();
 
   for (const auto &enemy : enemies) {
@@ -303,7 +321,7 @@ void Drawer::DrawEnemies(const std::vector<Enemy>& enemies, GLfloat currentFrame
       float inflationIntensity = 0.05f;
       finalScale = enemy.getIsDead() ? enemy.getDeathScale() : (0.4f + sin(currentFrame * inflationSpeed) * inflationIntensity);
 
-      float bobbingSpeed = 2.0f; 
+      float bobbingSpeed = 2.0f;
       float bobbingIntensity = 0.15f;
       float bobbing = enemy.getIsDead() ? 0.0f : abs(sin(currentFrame * bobbingSpeed)) * bobbingIntensity;
 
@@ -315,17 +333,17 @@ void Drawer::DrawEnemies(const std::vector<Enemy>& enemies, GLfloat currentFrame
 
     glm::vec3 drawPosition = enemy.getPosition() + glm::vec3(0.0f, yOffset, 0.0f);
 
-    model = glm::translate(model, drawPosition) * glm::toMat4(enemy.getOrientation()); 
+    model = glm::translate(model, drawPosition) * glm::toMat4(enemy.getOrientation());
     model = glm::scale(model, glm::vec3(finalScale, finalScale, finalScale));
     model = glm::rotate(model, glm::radians(-90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 
     modelLoadingShader.setMat4("model", model);
     if (enemy.getType() == EnemyType::BALLOM) {
-      modelLoadingShader.setFloat("shininess", 64.0f);
+      modelLoadingShader.setFloat("shininess", 128.0f); // latex balloon
       ballomModel.Draw(modelLoadingShader);
     } else {
-      modelLoadingShader.setFloat("shininess", 8.0f);
-      onilCuerpoModel.Draw(modelLoadingShader);
+      modelLoadingShader.setFloat("shininess", 2.0f);
+      onilBodyModel.Draw(modelLoadingShader);
 
       float swingAngle = 0.0f;
       if (enemy.getIsMoving() && !enemy.getIsDead()) {
@@ -337,12 +355,12 @@ void Drawer::DrawEnemies(const std::vector<Enemy>& enemies, GLfloat currentFrame
       glm::mat4 leftFootModel = model;
       leftFootModel = glm::rotate(leftFootModel, swingAngle, glm::vec3(0.0f, 0.0f, 1.0f));
       modelLoadingShader.setMat4("model", leftFootModel);
-      onilPieIzqModel.Draw(modelLoadingShader);
+      onilLeftFtModel.Draw(modelLoadingShader);
 
       glm::mat4 rightFootModel = model;
       rightFootModel = glm::rotate(rightFootModel, -swingAngle, glm::vec3(0.0f, 0.0f, 1.0f));
       modelLoadingShader.setMat4("model", rightFootModel);
-      onilPieDerModel.Draw(modelLoadingShader);
+      onilRightFtModel.Draw(modelLoadingShader);
     }
   }
 }
@@ -350,11 +368,9 @@ void Drawer::DrawEnemies(const std::vector<Enemy>& enemies, GLfloat currentFrame
 void Drawer::ApplyTexture(const Material& material, Shader& shader) {
   glActiveTexture(GL_TEXTURE0);
   glBindTexture(GL_TEXTURE_2D, material.diffuse);
-  glActiveTexture(GL_TEXTURE1);
-  glBindTexture(GL_TEXTURE_2D, material.specular);
-  glActiveTexture(GL_TEXTURE2);
-  glBindTexture(GL_TEXTURE_2D, material.ao);
 
+  shader.setFloat("material.ambientStrength", material.ambientStrength);
+  shader.setFloat("material.specularStrength", material.specularStrength);
   shader.setFloat("material.shininess", material.shininess);
   shader.setVec2("uvScale", material.uvScaleX, material.uvScaleY);
 }
