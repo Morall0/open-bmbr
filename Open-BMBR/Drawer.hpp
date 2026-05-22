@@ -42,10 +42,11 @@ struct MapMaterials {
 
 class Drawer {
   public:
-    Drawer(Shader& lightingShader, Shader& skeletalAnimShader, Shader& modelLoadingShader);
+    Drawer(Shader& lightingShader, Shader& skeletalAnimShader, Shader& modelLoadingShader, Shader& uiShader);
 
     // Initialization
     void InitMapMaterials();
+    void InitUI();
 
     // Static objects drawing
     void DrawMap(const Map& map, GLfloat currentFrame);
@@ -62,14 +63,24 @@ class Drawer {
     // Light Updates
     void SetupLights(std::vector<Bomb>& bombs, GLfloat currentFrame);
 
+    // UI Drawing
+    void DrawPauseMenu(bool isPaused, int selection, float deltaTime, int screenWidth, int screenHeight);
+
   private:
     Shader& lightingShader;
     Shader& skeletalAnimShader;
     Shader& modelLoadingShader;
+    Shader& uiShader;
 
     MapMaterials map_materials;
 
     GLuint doorAlternativeTex;
+
+    // UI state
+    GLuint uiVAO, uiVBO;
+    GLuint menuTexture;
+    float currentSelectorY = 0.0f;
+    float menuScale = 0.0f;
 
     // Helper functions
     void DrawFloor();

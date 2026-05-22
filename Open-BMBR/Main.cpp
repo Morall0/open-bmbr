@@ -88,6 +88,12 @@ bool moving = false;
 bool playerIsAlive = true;
 bool playerWon = false;
 
+// UI State
+bool isGamePaused = false;
+int menuSelection = 0;
+bool shouldRestartGame = false;
+bool shouldExitGame = false;
+
 float vertices[] = {
   // Vertex coords     // Normal cords      // Texcoords 
   -0.5f, -0.5f, -0.5f,  0.0f,  0.0f, -1.0f, 1.0f, 0.0f, // Back
@@ -190,6 +196,7 @@ int main() {
   Shader lightingShader("Shader/lighting.vs", "Shader/lighting.frag");
   Shader skeletalAnimShader("Shader/skeletal.vs", "Shader/skeletal.frag");
   Shader modelLoadingShader("Shader/modelLoading.vs", "Shader/modelLoading.frag");
+  Shader uiShader("Shader/ui.vs", "Shader/ui.frag");
 
   stbi_set_flip_vertically_on_load(true);
 
@@ -241,8 +248,9 @@ int main() {
   glBindVertexArray(0);
 
   // Instantiate Drawer and initialize materials
-  Drawer renderer(lightingShader, skeletalAnimShader, modelLoadingShader);
+  Drawer renderer(lightingShader, skeletalAnimShader, modelLoadingShader, uiShader);
   renderer.InitMapMaterials();
+  renderer.InitUI();
 
   // Configuring lightingShader
   lightingShader.use();
@@ -311,36 +319,49 @@ int main() {
 
     // Check if any events have been activated (key pressed, mouse moved etc.)
     glfwPollEvents();
-    DoMovement(bomberman, map, enemies, activeBombs, animator, animations);
 
-    bomberman.collectPowerups(map);
+    if (shouldExitGame) {
+      glfwSetWindowShouldClose(window, GL_TRUE);
+    }
+    if (shouldRestartGame) {
+      restart(bomberman, map, enemies);
+      shouldRestartGame = false;
+    }
 
     glm::vec3 player_position = bomberman.getPosition();
 
-    // Remove expired bombs
-    for (auto it = activeBombs.begin(); it != activeBombs.end(); ) {
-      if (!it->getBombState() && !it->isFireActive()) {
-        it = activeBombs.erase(it);
-      } else {
-        ++it;
-      }
-    }
+    if (!isGamePaused) {
+      DoMovement(bomberman, map, enemies, activeBombs, animator, animations);
 
-    // Enemies update and remove when dead
-    for (auto it = enemies.begin(); it != enemies.end(); ) {
-      it->Update(deltaTime, map, player_position);
-      // Delete from vector only when dead animation ends (scale 0)
-      if (it->getIsDead() && it->getDeathScale() <= 0.0f) {
-        it = enemies.erase(it);
-      } else {
-        ++it;
-      }
-    }
+      bomberman.collectPowerups(map);
 
-    // Update keyframe animations
-    animator.UpdateAnimation(deltaTime);
-    fire_animator.UpdateAnimation(deltaTime);
-    door_animator.UpdateAnimation(deltaTime);
+      player_position = bomberman.getPosition();
+
+      // Remove expired bombs
+      for (auto it = activeBombs.begin(); it != activeBombs.end(); ) {
+        if (!it->getBombState() && !it->isFireActive()) {
+          it = activeBombs.erase(it);
+        } else {
+          ++it;
+        }
+      }
+
+      // Enemies update and remove when dead
+      for (auto it = enemies.begin(); it != enemies.end(); ) {
+        it->Update(deltaTime, map, player_position);
+        // Delete from vector only when dead animation ends (scale 0)
+        if (it->getIsDead() && it->getDeathScale() <= 0.0f) {
+          it = enemies.erase(it);
+        } else {
+          ++it;
+        }
+      }
+
+      // Update keyframe animations
+      animator.UpdateAnimation(deltaTime);
+      fire_animator.UpdateAnimation(deltaTime);
+      door_animator.UpdateAnimation(deltaTime);
+    }
 
     // Clear the colorbuffer
     glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
@@ -465,6 +486,9 @@ int main() {
     modelLoadingShader.setVec3("viewPos", camera.GetPosition());
 
     renderer.DrawEnemies(enemies, currentFrame, ballomModel, onilCuerpoModel, onilPieIzqModel, onilPieDerModel);
+
+    // PAUSE MENU ------
+    renderer.DrawPauseMenu(isGamePaused, menuSelection, deltaTime, SCREEN_WIDTH, SCREEN_HEIGHT);
 
     glBindVertexArray(0);
 
@@ -623,7 +647,26 @@ void restart(Player& bomberman, Map& map, std::vector<Enemy>& enemies) {
 void KeyCallback(GLFWwindow *window, int key, int scancode, int action,
                  int mode) {
   if (GLFW_KEY_ESCAPE == key && GLFW_PRESS == action) {
-    glfwSetWindowShouldClose(window, GL_TRUE);
+    isGamePaused = !isGamePaused;
+  }
+
+  if (isGamePaused) {
+    if (GLFW_KEY_UP == key && GLFW_PRESS == action) {
+      menuSelection = (menuSelection - 1 + 3) % 3;
+    }
+    if (GLFW_KEY_DOWN == key && GLFW_PRESS == action) {
+      menuSelection = (menuSelection + 1) % 3;
+    }
+    if ((GLFW_KEY_ENTER == key || GLFW_KEY_SPACE == key) && GLFW_PRESS == action) {
+      if (menuSelection == 0) {
+        isGamePaused = false;
+      } else if (menuSelection == 1) {
+        shouldRestartGame = true;
+        isGamePaused = false;
+      } else if (menuSelection == 2) {
+        shouldExitGame = true;
+      }
+    }
   }
 
   if (key == GLFW_KEY_C && action == GLFW_PRESS) {

@@ -5,8 +5,8 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/quaternion.hpp>
 
-Drawer::Drawer(Shader& lightingShader, Shader& skeletalAnimShader, Shader& modelLoadingShader)
-  : lightingShader(lightingShader), skeletalAnimShader(skeletalAnimShader), modelLoadingShader(modelLoadingShader)
+Drawer::Drawer(Shader& lightingShader, Shader& skeletalAnimShader, Shader& modelLoadingShader, Shader& uiShader)
+  : lightingShader(lightingShader), skeletalAnimShader(skeletalAnimShader), modelLoadingShader(modelLoadingShader), uiShader(uiShader)
 {
 }
 
@@ -34,6 +34,41 @@ void Drawer::InitMapMaterials() {
   map_materials.bomb_pu_mat   = {bomb_pu_tex,  0.8f, 0.5f, 64.0f, 1.0f, 1.0f};
   map_materials.fire_pu_mat   = {fire_pu_tex,  0.8f, 0.5f, 64.0f, 1.0f, 1.0f};
   map_materials.speed_pu_mat  = {speed_pu_tex, 0.8f, 0.5f, 64.0f, 1.0f, 1.0f};
+}
+
+void Drawer::InitUI() {
+  // Configure VAO/VBO for a 2D quad
+  // Format: pos x, pos y, tex x, tex y
+  float vertices[] = {
+    // Pos      // Tex (Y inverted because stbi flips vertically and ortho is top-down)
+    0.0f, 1.0f, 0.0f, 0.0f, // Bottom Left
+    1.0f, 0.0f, 1.0f, 1.0f, // Top Right
+    0.0f, 0.0f, 0.0f, 1.0f, // Top Left
+
+    0.0f, 1.0f, 0.0f, 0.0f, // Bottom Left
+    1.0f, 1.0f, 1.0f, 0.0f, // Bottom Right
+    1.0f, 0.0f, 1.0f, 1.0f  // Top Right
+  };
+
+  glGenVertexArrays(1, &uiVAO);
+  glGenBuffers(1, &uiVBO);
+
+  glBindBuffer(GL_ARRAY_BUFFER, uiVBO);
+  glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+
+  glBindVertexArray(uiVAO);
+  glEnableVertexAttribArray(0);
+  glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
+  glEnableVertexAttribArray(1);
+  glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
+  glBindBuffer(GL_ARRAY_BUFFER, 0);
+  glBindVertexArray(0);
+
+  // Load menu texture
+  menuTexture = LoadTexture2D("images/Menu.png");
+
+  // Initial target for selection (Resume)
+  currentSelectorY = 0.0f;
 }
 
 void Drawer::SetupLights(std::vector<Bomb>& bombs, GLfloat currentFrame) {
@@ -83,6 +118,79 @@ void Drawer::SetupLights(std::vector<Bomb>& bombs, GLfloat currentFrame) {
       shader->setVec3("fireLight.specular",   1.0f, 0.5f, 0.0f);
     }
   }
+}
+
+void Drawer::DrawPauseMenu(bool isPaused, int selection, float deltaTime, int screenWidth, int screenHeight) {
+  if (isPaused) {
+    menuScale = glm::mix(menuScale, 1.0f, deltaTime * 10.0f);
+  } else {
+    menuScale = glm::mix(menuScale, 0.0f, deltaTime * 15.0f);
+  }
+
+  if (menuScale < 0.01f) return;
+
+  glDisable(GL_DEPTH_TEST);
+  glEnable(GL_BLEND);
+  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+  uiShader.use();
+  glm::mat4 projection = glm::ortho(0.0f, (float)screenWidth, (float)screenHeight, 0.0f, -1.0f, 1.0f);
+  uiShader.setMat4("projection", projection);
+
+  glBindVertexArray(uiVAO);
+
+  // 1. Draw Dark Overlay Background
+  glm::mat4 model = glm::mat4(1.0f);
+  model = glm::scale(model, glm::vec3((float)screenWidth, (float)screenHeight, 1.0f));
+  uiShader.setMat4("model", model);
+  uiShader.setBool("useTexture", false);
+  uiShader.setVec4("color", glm::vec4(0.0f, 0.0f, 0.0f, 0.7f * menuScale));
+  glDrawArrays(GL_TRIANGLES, 0, 6);
+
+  // Constants for menu
+  float menuWidth = 400.0f;
+  float menuHeight = 500.0f;
+
+  // Center scaling for zoom effect
+  glm::mat4 menuModel = glm::mat4(1.0f);
+  menuModel = glm::translate(menuModel, glm::vec3(screenWidth / 2.0f, screenHeight / 2.0f, 0.0f));
+  menuModel = glm::scale(menuModel, glm::vec3(menuScale, menuScale, 1.0f));
+  menuModel = glm::translate(menuModel, glm::vec3(-menuWidth / 2.0f, -menuHeight / 2.0f, 0.0f));
+
+  // 2. Draw Red Selector
+  // Target Y based on selection: 0 -> Resume, 1 -> New Game, 2 -> Exit
+  float optionHeights[] = {106.0f, 196.0f, 290.0f}; // Approximations, adjustable
+  float targetY = optionHeights[selection];
+  
+  // Smooth lerp
+  currentSelectorY = currentSelectorY + (targetY - currentSelectorY) * (deltaTime * 15.0f);
+
+  glm::mat4 selectorModel = menuModel;
+  selectorModel = glm::translate(selectorModel, glm::vec3(50.0f, currentSelectorY, 0.0f)); // Offset X a bit
+  selectorModel = glm::scale(selectorModel, glm::vec3(300.0f, 60.0f, 1.0f));
+  
+  uiShader.setMat4("model", selectorModel);
+  uiShader.setBool("useTexture", false);
+  uiShader.setVec4("color", glm::vec4(2.0f, 0.41f, 0.1f, 0.9f)); // Red with slight transparency
+  glDrawArrays(GL_TRIANGLES, 0, 6);
+
+  // 3. Draw Menu Image
+  glm::mat4 imgModel = menuModel;
+  imgModel = glm::scale(imgModel, glm::vec3(menuWidth, menuHeight, 1.0f));
+  
+  uiShader.setMat4("model", imgModel);
+  uiShader.setBool("useTexture", true);
+  uiShader.setVec4("color", glm::vec4(1.0f)); // White to keep original texture colors
+  
+  glActiveTexture(GL_TEXTURE0);
+  glBindTexture(GL_TEXTURE_2D, menuTexture);
+  uiShader.setInt("image", 0);
+  
+  glDrawArrays(GL_TRIANGLES, 0, 6);
+
+  glBindVertexArray(0);
+  glDisable(GL_BLEND);
+  glEnable(GL_DEPTH_TEST);
 }
 
 void Drawer::DrawMap(const Map& map, GLfloat currentFrame) {
