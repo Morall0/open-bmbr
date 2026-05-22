@@ -181,7 +181,7 @@ bool Player::CheckCollision(glm::vec3 newPos, const Map& map)
       if(!canPassBomb)
         return true;
     }
-    else if (cell != 0 && cell != 6 && cell != 7 && cell != 8) // Collision omitting flame, door, and powerup
+    else if (cell != 0 && cell != 6 && cell != 7 && cell != 8 && cell != 11 && cell != 12) // Collision omitting flame, door, and powerups
       return true;
   }
 
@@ -195,4 +195,32 @@ void Player::resetTo(glm::vec3 pos, glm::vec3 dir) {
   dir = glm::normalize(dir);
   position = pos;
   orientation = glm::rotation(glm::vec3(0,0,1), dir);
+  speed = SPEED; // Reset speed
+  maxBombs = 1;  // Reset bombs
+  fireRadius = 1; // Reset fire
+}
+
+void Player::increaseSpeed() {
+  speed *= 1.25f; // Increase speed by 25%
+}
+
+void Player::collectPowerups(Map& map) {
+  MapIndices indices = map.toMapIndices(position);
+  int powerup = map.collectPowerup(indices);
+
+  if (powerup == 8) {
+    maxBombs++;
+  } else if (powerup == 11) {
+    fireRadius++;
+  } else if (powerup == 12) {
+    increaseSpeed();
+  }
+}
+
+int Player::getMaxBombs() const {
+  return maxBombs;
+}
+
+int Player::getFireRadius() const {
+  return fireRadius;
 }

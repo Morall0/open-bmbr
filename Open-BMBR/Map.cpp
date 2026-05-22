@@ -18,6 +18,7 @@ Map::Map(int rows, int cols)
 
 // Generate the map matrix
 void Map::genMap() {
+    destructibleBricks.clear();
     for (int row = 0; row < rows; row++) {
         for (int col = 0; col < cols; col++) {
 
@@ -59,7 +60,7 @@ void Map::genHidden() {
 
     if (!destructibleBricks.empty()) {
 
-        int numPowerUps = (rand() % 2) + 1;
+        int numPowerUps = (rand() % 3) + 2; // 2 to 4 powerups
 
         for (int i = 0; i < numPowerUps && !destructibleBricks.empty(); i++) {
 
@@ -68,7 +69,13 @@ void Map::genHidden() {
             int r = destructibleBricks[powerIndex].first;
             int c = destructibleBricks[powerIndex].second;
 
-            mapGrid[r][c] = 4; // powerup
+            int powerType = rand() % 3;
+            if (powerType == 0)
+                mapGrid[r][c] = 4; // Hidden Bomb PU
+            else if (powerType == 1)
+                mapGrid[r][c] = 9; // Hidden Fire PU
+            else
+                mapGrid[r][c] = 10; // Hidden Speed PU
 
             destructibleBricks.erase(destructibleBricks.begin() + powerIndex);
         }
@@ -90,7 +97,7 @@ void Map::printMap() const {
                 std::cout << "##";
             else if (mapGrid[row][col] == 3)
                 std::cout << "EE";
-            else if (mapGrid[row][col] == 4)
+            else if (mapGrid[row][col] == 4 || mapGrid[row][col] == 9 || mapGrid[row][col] == 10)
                 std::cout << "PP";
             else if (mapGrid[row][col] == 5)
                 std::cout << "BB";
@@ -98,8 +105,8 @@ void Map::printMap() const {
                 std::cout << "FF";
             else if (mapGrid[row][col] == 7)
                 std::cout << "DD"; // Door revealed
-            else if (mapGrid[row][col] == 8)
-                std::cout << "pu"; // Powerup revealed
+            else if (mapGrid[row][col] == 8 || mapGrid[row][col] == 11 || mapGrid[row][col] == 12)
+                std::cout << "pu"; // Powerups revealed
         }
 
         std::cout << std::endl;
@@ -134,78 +141,78 @@ void Map::setBomb(MapIndices indices)
   mapGrid[indices.row][indices.col] = 5;
 }
 
-void Map::setFire(MapIndices indices)
+void Map::detonateBomb(MapIndices indices, int fireRadius)
 {
   int row = indices.row;
   int col = indices.col;
 
-  mapGrid[row][col] = 6; // Set the center
+  mapGrid[row][col] = 6; // Set the center to fire
 
-  MapIndices neighbors[4] = {
-    {row - 1, col},
-    {row + 1, col},
-    {row, col - 1},
-    {row, col + 1}
-  };
+  int dRow[] = {-1, 1, 0, 0};
+  int dCol[] = {0, 0, -1, 1};
 
-  // For each neighbor
-  for (int i = 0; i < 4; i++)
-  {
-    int cell = getCell(neighbors[i].row, neighbors[i].col); // neighbor cell
-    if (cell == 0) // Only spread fire to empty air cells
-      mapGrid[neighbors[i].row][neighbors[i].col] = 6;
-    // Cells 7 (door) and 8 (powerup) are NOT overwritten by fire
+  for (int i = 0; i < 4; i++) {
+    for (int step = 1; step <= fireRadius; step++) {
+      int r = row + dRow[i] * step;
+      int c = col + dCol[i] * step;
+      int cell = getCell(r, c);
+
+      if (cell == 1) break; // Hard block stops explosion
+
+      if (cell == 2) { mapGrid[r][c] = 6; break; } // Regular brick becomes fire, stops
+      if (cell == 3) { mapGrid[r][c] = 7; break; } // Hidden door becomes revealed, stops
+      if (cell == 4) { mapGrid[r][c] = 8; break; } // Hidden Bomb PU
+      if (cell == 9) { mapGrid[r][c] = 11; break; } // Hidden Fire PU
+      if (cell == 10) { mapGrid[r][c] = 12; break; } // Hidden Speed PU
+
+      if (cell == 8 || cell == 11 || cell == 12) {
+        mapGrid[r][c] = 6; // Destroy revealed powerups
+      } else if (cell == 0) {
+        mapGrid[r][c] = 6; // Empty space becomes fire
+      }
+    }
   }
 }
 
-void Map::detonateBomb(MapIndices indices)
-{
-  int row = indices.row;
-  int col = indices.col;
-  // Bomb neighbors cells
-  MapIndices neighbors[4] = {
-    {row - 1, col},
-    {row + 1, col},
-    {row, col - 1},
-    {row, col + 1}
-  };
-
-  // For each neighbor
-  for (int i = 0; i < 4; i++)
-  {
-    int cell = getCell(neighbors[i].row, neighbors[i].col); // neighbor cell
-    if (cell == 2) // A regular destructible block — clear it
-      mapGrid[neighbors[i].row][neighbors[i].col] = 0;
-    else if (cell == 3) // Hidden exit (door) — reveal it
-      mapGrid[neighbors[i].row][neighbors[i].col] = 7;
-    else if (cell == 4) // Hidden powerup — reveal it
-      mapGrid[neighbors[i].row][neighbors[i].col] = 8;
-  }
-
-  mapGrid[row][col] = 0; // Destroy bomb
-}
-
-void Map::extinguishFire(MapIndices indices)
+void Map::extinguishFire(MapIndices indices, int fireRadius)
 {
   int row = indices.row;
   int col = indices.col;
 
   mapGrid[row][col] = 0;
 
-  MapIndices neighbors[4] = {
-    {row - 1, col},
-    {row + 1, col},
-    {row, col - 1},
-    {row, col + 1}
-  };
+  int dRow[] = {-1, 1, 0, 0};
+  int dCol[] = {0, 0, -1, 1};
 
-  // For each neighbor
-  for (int i = 0; i < 4; i++)
-  {
-    int cell = getCell(neighbors[i].row, neighbors[i].col); // neighbor cell
-    if (cell == 6) // Fire cell
-      mapGrid[neighbors[i].row][neighbors[i].col] = 0; // Set air id
+  for (int i = 0; i < 4; i++) {
+    for (int step = 1; step <= fireRadius; step++) {
+      int r = row + dRow[i] * step;
+      int c = col + dCol[i] * step;
+      int cell = getCell(r, c);
+
+      if (cell == 6) {
+        mapGrid[r][c] = 0;
+      } else if (cell != 0) {
+        break; // Stop raycast at any non-empty non-fire block
+      }
+    }
   }
+}
+
+int Map::collectPowerup(MapIndices indices)
+{
+  int row = indices.row;
+  int col = indices.col;
+
+  if (row < 0 || row >= rows || col < 0 || col >= cols)
+    return 0;
+
+  int cell = mapGrid[row][col];
+  if (cell == 8 || cell == 11 || cell == 12) {
+    mapGrid[row][col] = 0; // Remove powerup from map
+    return cell;
+  }
+  return 0;
 }
 
 MapIndices Map::toMapIndices(glm::vec3 position) const

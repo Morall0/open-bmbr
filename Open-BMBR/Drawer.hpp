@@ -35,6 +35,9 @@ struct MapMaterials {
   Material wall_mat;
   Material hardblock_mat;
   Material brick_mat;
+  Material bomb_pu_mat;
+  Material fire_pu_mat;
+  Material speed_pu_mat;
 };
 
 class Drawer {
@@ -45,19 +48,19 @@ class Drawer {
     void InitMapMaterials();
 
     // Static objects drawing
-    void DrawMap(const Map& map);
+    void DrawMap(const Map& map, GLfloat currentFrame);
     void DrawDoor(const Map& map, Model& doorBaseModel, Model& doorModel, Animator& animator, bool locked);
 
     // Dynamic objects drawing
-    void DrawBomb(Bomb& bomb, Map& map, GLfloat currentTime, Model& bombModel);
-    void DrawFire(Bomb& bomb, Map& map, GLfloat currentTime, Model& fireModel, Animator& fireAnimator);
+    void DrawBomb(std::vector<Bomb>& bombs, Map& map, GLfloat currentTime, Model& bombModel);
+    void DrawFire(std::vector<Bomb>& bombs, Map& map, GLfloat currentTime, Model& fireModel, Animator& fireAnimator);
 
     // Characters drawing
     void DrawRobot(Player& bomberman, Model& robot, Animator& animator, bool isFirstPerson);
     void DrawEnemies(const std::vector<Enemy>& enemies, GLfloat currentFrame, Model& ballomModel, Model& onilBodyModel, Model& onilLeftFtModel, Model& onilRightFtModel);
 
     // Light Updates
-    void SetupLights(Bomb& bomb, GLfloat currentFrame);
+    void SetupLights(std::vector<Bomb>& bombs, GLfloat currentFrame);
 
   private:
     Shader& lightingShader;
@@ -71,7 +74,7 @@ class Drawer {
     // Helper functions
     void DrawFloor();
     void DrawWalls();
-    void DrawMapBlocks(const Map& map);
+    void DrawMapBlocks(const Map& map, GLfloat currentFrame);
 
     void ApplyTexture(const Material& material, Shader& shader);
     GLuint LoadTexture2D(const char* path);

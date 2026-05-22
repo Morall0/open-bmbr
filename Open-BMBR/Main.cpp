@@ -50,7 +50,7 @@ struct AnimationsSet {
 // Function prototypes
 void KeyCallback(GLFWwindow *window, int key, int scancode, int action, int mode);
 void MouseCallback(GLFWwindow *window, double xPos, double yPos);
-void DoMovement(Player& bomberman, Map& map, std::vector<Enemy>& enemies, Bomb& bomb, Animator& animator, AnimationsSet& animations);
+void DoMovement(Player& bomberman, Map& map, std::vector<Enemy>& enemies, std::vector<Bomb>& bombs, Animator& animator, AnimationsSet& animations);
 
 void SelectAnimation(Animator& animator, AnimationsSet& animations);
 
@@ -290,8 +290,8 @@ int main() {
   // The initial position is in the secure zone map(0,0)
   Player bomberman(glm::vec3(-half_cols + 1, -0.49f, -half_rows + 1), glm::vec2(0.0f, 1.0f));
 
-  // Initializing Bomb object with duration and y_pos
-  Bomb bomb(2.5f, -0.2f);
+  // Vector for active bombs
+  std::vector<Bomb> activeBombs;
 
   // Set the projection type and parameters
   glm::mat4 projection = glm::perspective(camera.GetZoom(), 
@@ -310,12 +310,23 @@ int main() {
     lastFrame = currentFrame;
 
     // Check if any events have been activated (key pressed, mouse moved etc.)
-    // and call corresponding response functions
     glfwPollEvents();
-    DoMovement(bomberman, map, enemies, bomb, animator, animations);
+    DoMovement(bomberman, map, enemies, activeBombs, animator, animations);
+
+    bomberman.collectPowerups(map);
 
     glm::vec3 player_position = bomberman.getPosition();
 
+    // Remove expired bombs
+    for (auto it = activeBombs.begin(); it != activeBombs.end(); ) {
+      if (!it->getBombState() && !it->isFireActive()) {
+        it = activeBombs.erase(it);
+      } else {
+        ++it;
+      }
+    }
+
+    // Enemies update and remove when dead
     for (auto it = enemies.begin(); it != enemies.end(); ) {
       it->Update(deltaTime, map, player_position);
       // Delete from vector only when dead animation ends (scale 0)
@@ -367,15 +378,15 @@ int main() {
 
     // UPDATE LIGHTS ------
     // Updates dynamic light positions and intensities for all shaders
-    renderer.SetupLights(bomb, currentFrame);
+    renderer.SetupLights(activeBombs, currentFrame);
 
     // MAP ------
     // Draws the static map grid including floors, walls, and pillars
-    renderer.DrawMap(map);
+    renderer.DrawMap(map, currentFrame);
 
     // BOMBS ------
     // Renders the bomb model with an accelerating blinking effect
-    renderer.DrawBomb(bomb, map, currentFrame, bombModel);
+    renderer.DrawBomb(activeBombs, map, currentFrame, bombModel);
 
     // DOOR ------
     // Draws the exit hatch when it is revealed on the map
@@ -385,7 +396,15 @@ int main() {
     }
 
     // Check if the player dies from fire
-    if (bomb.isFireActive() && bomb.checkCollision(player_position, map) && playerIsAlive) {
+    bool fireCollision = false;
+    for (auto& bomb : activeBombs) {
+      if (bomb.isFireActive() && bomb.checkCollision(player_position, map)) {
+        fireCollision = true;
+        break;
+      }
+    }
+
+    if (fireCollision && playerIsAlive) {
       playerIsAlive = false;
       animator.PlayAnimation(&animations.deadAnim, false);
     }
@@ -434,7 +453,7 @@ int main() {
 
     // FIRE ------
     // Renders the cross-shaped fire explosion particles
-    renderer.DrawFire(bomb, map, currentFrame, fire, fire_animator);
+    renderer.DrawFire(activeBombs, map, currentFrame, fire, fire_animator);
 
     // ENEMIES ------
     // Draws all enemies with their respective movement and death animations
@@ -460,7 +479,7 @@ int main() {
 }
 
 // Moves/alters the camera positions based on user input
-void DoMovement(Player& bomberman, Map& map, std::vector<Enemy>& enemies, Bomb& bomb, Animator& animator, AnimationsSet& animations) {
+void DoMovement(Player& bomberman, Map& map, std::vector<Enemy>& enemies, std::vector<Bomb>& bombs, Animator& animator, AnimationsSet& animations) {
   if (!playerIsAlive || playerWon) { // Cant move if player dies or wins
     // Restart when player dies or wins
     if (keys[GLFW_KEY_R])
@@ -540,14 +559,22 @@ void DoMovement(Player& bomberman, Map& map, std::vector<Enemy>& enemies, Bomb& 
   }
 
   // Place bomb
-  bool can_place_bomb = bomb.getBombState() == false && bomb.isFireActive() == false;
+  int active_count = 0;
+  for (auto& b : bombs) {
+    if (b.getBombState() || b.isFireActive()) active_count++;
+  }
+  bool can_place_bomb = (active_count < bomberman.getMaxBombs());
+
   if (keys[GLFW_KEY_SPACE] && can_place_bomb) {
     MapIndices p_idx = map.toMapIndices(bomberman.getPosition());
     int cell = map.getCell(p_idx.row, p_idx.col);
-    if (cell != 7 && cell != 8) { // Do not overwrite door or powerups
-      bomb.activateBomb(bomberman.getPosition(), glfwGetTime(), map);
+    if (cell != 7 && cell != 8 && cell != 11 && cell != 12 && cell != 5) { // Do not overwrite door, powerups, or other bombs
+      Bomb newBomb(2.5f, -0.2f);
+      newBomb.activateBomb(bomberman.getPosition(), glfwGetTime(), map, bomberman.getFireRadius());
+      bombs.push_back(newBomb);
       bomberman.setCanPassBomb(true);
       animator.PlayAnimation(&animations.punchAnim, false);
+      keys[GLFW_KEY_SPACE] = false; // Prevent holding space to spam bombs
     }
   }
 }

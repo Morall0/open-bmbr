@@ -25,18 +25,33 @@ void Drawer::InitMapMaterials() {
   map_materials.wall_mat      = {wall_diff,      0.6f,  0.20f, 32.0f,   1.0f, 1.0f};
   map_materials.hardblock_mat = {hardblock_diff, 0.6f,  0.80f, 128.0f,  1.0f, 1.0f};
   map_materials.brick_mat     = {brick_diff,     0.65f, 0.10f, 16.0f,   1.0f, 1.0f};
+
+  // Powerup Textures
+  GLuint bomb_pu_tex  = LoadTexture2D("images/pwup_bomb.png");
+  GLuint fire_pu_tex  = LoadTexture2D("images/pwup_fire.png");
+  GLuint speed_pu_tex = LoadTexture2D("images/pwup_speed.png");
+
+  map_materials.bomb_pu_mat   = {bomb_pu_tex,  0.8f, 0.5f, 64.0f, 1.0f, 1.0f};
+  map_materials.fire_pu_mat   = {fire_pu_tex,  0.8f, 0.5f, 64.0f, 1.0f, 1.0f};
+  map_materials.speed_pu_mat  = {speed_pu_tex, 0.8f, 0.5f, 64.0f, 1.0f, 1.0f};
 }
 
-void Drawer::SetupLights(Bomb& bomb, GLfloat currentFrame) {
-  bool bombActive = bomb.getBombState();
-  bool fireActive = bomb.isFireActive();
+void Drawer::SetupLights(std::vector<Bomb>& bombs, GLfloat currentFrame) {
+  bool bombActive = false;
+  bool fireActive = false;
+  glm::vec3 bpos(0.0f);
+  glm::vec3 fpos(0.0f);
 
-  float bombBlinkScale = sin(currentFrame * 6.0f) * 0.05f;
-  float bombLightIntensity = 0.1f + bombBlinkScale * 10.0f;
-  bombLightIntensity = glm::clamp(bombLightIntensity, 0.0f, 1.2f);
-
-  glm::vec3 bpos = bomb.getBombPosition() + glm::vec3(0.0f, 0.5f, 0.0f);
-  glm::vec3 fpos = bomb.getBombPosition() + glm::vec3(0.0f, 0.3f, 0.0f);
+  for (Bomb& bomb : bombs) {
+    if (bomb.getBombState()) {
+      bombActive = true;
+      bpos = bomb.getBombPosition() + glm::vec3(0.0f, 0.5f, 0.0f);
+    }
+    if (bomb.isFireActive()) {
+      fireActive = true;
+      fpos = bomb.getBombPosition() + glm::vec3(0.0f, 0.3f, 0.0f);
+    }
+  }
 
   // Update dynamic light positions and intensities for all shaders
   Shader* shaders[] = {&lightingShader, &skeletalAnimShader, &modelLoadingShader};
@@ -45,6 +60,9 @@ void Drawer::SetupLights(Bomb& bomb, GLfloat currentFrame) {
     shader->use();
     shader->setBool("bombLightActive", bombActive);
     if (bombActive) {
+      float bombBlinkScale = sin(currentFrame * 6.0f) * 0.05f;
+      float bombLightIntensity = glm::clamp(0.1f + bombBlinkScale * 10.0f, 0.0f, 1.2f);
+
       shader->setVec3("bombLight.position", bpos);
       shader->setFloat("bombLight.constant",  1.0f);
       shader->setFloat("bombLight.linear",    0.35f);
@@ -67,11 +85,11 @@ void Drawer::SetupLights(Bomb& bomb, GLfloat currentFrame) {
   }
 }
 
-void Drawer::DrawMap(const Map& map) {
+void Drawer::DrawMap(const Map& map, GLfloat currentFrame) {
   lightingShader.use();
   DrawFloor();
   DrawWalls();
-  DrawMapBlocks(map);
+  DrawMapBlocks(map, currentFrame);
 }
 
 void Drawer::DrawFloor() {
@@ -114,13 +132,13 @@ void Drawer::DrawWalls() {
   }
 }
 
-void Drawer::DrawMapBlocks(const Map& map) {
+void Drawer::DrawMapBlocks(const Map& map, GLfloat currentFrame) {
   glm::mat4 model(1.0f);
 
   for (int row = 0; row < MAP_ROWS; row++) {
     for (int col = 0; col < MAP_COLS; col++) {
       int cell = map.getCell(row, col);
-      if (cell == 0 || cell == 5 || cell == 6 || cell == 7 || cell == 8)
+      if (cell == 0 || cell == 5 || cell == 6 || cell == 7)
         continue;
 
       float xPos = col - (HALF_COLS - 1);
@@ -128,130 +146,131 @@ void Drawer::DrawMapBlocks(const Map& map) {
 
       if (cell == 1) {
         ApplyTexture(map_materials.hardblock_mat, lightingShader);
-      } else if (cell >= 2 && cell <= 4) {
+      } else if (cell == 2 || cell == 3 || cell == 4 || cell == 9 || cell == 10) {
         ApplyTexture(map_materials.brick_mat, lightingShader);
+      } else if (cell == 8) {
+        ApplyTexture(map_materials.bomb_pu_mat, lightingShader);
+      } else if (cell == 11) {
+        ApplyTexture(map_materials.fire_pu_mat, lightingShader);
+      } else if (cell == 12) {
+        ApplyTexture(map_materials.speed_pu_mat, lightingShader);
+      } else {
+        continue;
       }
 
       model = glm::mat4(1.0f);
-      model = glm::translate(model, glm::vec3(xPos, 0.0f, zPos));
+
+      // Floating & rotating animation
+      if (cell == 8 || cell == 11 || cell == 12) {
+        float bobHeight = 0.15f;
+        float bobSpeed = 3.0f;
+        float rotSpeed = 2.0f;
+        float yPos = -0.2f + sin(currentFrame * bobSpeed) * bobHeight;
+
+        model = glm::translate(model, glm::vec3(xPos, yPos, zPos));
+        model = glm::rotate(model, currentFrame * rotSpeed, glm::vec3(0.0f, 1.0f, 0.0f));
+        model = glm::scale(model, glm::vec3(0.5f, 0.5f, 0.5f));
+      } else {
+        model = glm::translate(model, glm::vec3(xPos, 0.0f, zPos));
+      }
+
       lightingShader.setMat4("model", model);
       glDrawArrays(GL_TRIANGLES, 0, 36);
     }
   }
 }
 
-void Drawer::DrawBomb(Bomb& bomb, Map& map, GLfloat currentTime, Model& bombModel) {
-  if (bomb.getBombState()) {
-    float blinkSpeed = 6.0f;
-    float blinkIntensity = 0.05f;
-    float blinkScale = sin(currentTime * blinkSpeed) * blinkIntensity;
-    float finalBlinkScale = 0.15f + (blinkScale * 0.5f);
+void Drawer::DrawBomb(std::vector<Bomb>& bombs, Map& map, GLfloat currentTime, Model& bombModel) {
+  for (Bomb& bomb : bombs) {
+    if (bomb.getBombState()) {
+      float blinkSpeed = 6.0f;
+      float blinkIntensity = 0.05f;
+      float blinkScale = sin(currentTime * blinkSpeed) * blinkIntensity;
+      float finalBlinkScale = 0.15f + (blinkScale * 0.5f);
 
-    glm::vec3 bomb_position = bomb.getBombPosition();
-    if (currentTime >= bomb.getBombExpiration()) {
-      bomb.expireBomb(bomb_position, map, currentTime);
+      glm::vec3 bomb_position = bomb.getBombPosition();
+      if (currentTime >= bomb.getBombExpiration()) {
+        bomb.expireBomb(bomb_position, map, currentTime);
+      }
+
+      modelLoadingShader.use();
+      glm::mat4 model(1.0f);
+      model = glm::translate(model, bomb_position);
+      model = glm::scale(model, glm::vec3(finalBlinkScale, finalBlinkScale, finalBlinkScale));
+      modelLoadingShader.setMat4("model", model);
+      modelLoadingShader.setFloat("shininess", 128.0f); // bowling-ball polish
+      bombModel.Draw(modelLoadingShader);
     }
-
-    modelLoadingShader.use();
-    glm::mat4 model(1.0f);
-    model = glm::translate(model, bomb_position);
-    model = glm::scale(model, glm::vec3(finalBlinkScale, finalBlinkScale, finalBlinkScale));
-    modelLoadingShader.setMat4("model", model);
-    modelLoadingShader.setFloat("shininess", 128.0f); // bowling-ball polish
-    bombModel.Draw(modelLoadingShader);
   }
 }
 
-void Drawer::DrawFire(Bomb& bomb, Map& map, GLfloat currentTime, Model& fireModel, Animator& fireAnimator) {
-  if (bomb.isFireActive()) {
-    glm::vec3 firePosition = bomb.getBombPosition() - glm::vec3(0.0f, 0.25f, 0.0f);
-    MapIndices grid_position = map.toMapIndices(firePosition);
+void Drawer::DrawFire(std::vector<Bomb>& bombs, Map& map, GLfloat currentTime, Model& fireModel, Animator& fireAnimator) {
+  for (Bomb& bomb : bombs) {
+    if (bomb.isFireActive()) {
+      glm::vec3 firePosition = bomb.getBombPosition() - glm::vec3(0.0f, 0.25f, 0.0f);
+      MapIndices grid_position = map.toMapIndices(firePosition);
 
-    if (currentTime >= bomb.getFireExpiration()) {
-      bomb.putOutFire(grid_position, map);
-    }
-
-    skeletalAnimShader.use();
-    auto transforms = fireAnimator.GetFinalBoneMatrices();
-    for (size_t i = 0; i < transforms.size(); ++i) {
-      skeletalAnimShader.setMat4("finalBonesMatrices[" + std::to_string(i) + "]", transforms[i]);
-    }
-
-    glm::vec3 center = firePosition + glm::vec3(0.0f, 0.45f, 0.0f);
-    skeletalAnimShader.setInt("isFireModel", 1);
-
-    glm::mat4 model(1.0f);
-    model = glm::translate(model, firePosition);
-    model = glm::scale(model, glm::vec3(0.04f, 0.04f, 0.04f));
-    skeletalAnimShader.setMat4("model", model);
-    skeletalAnimShader.setVec3("fireCenter", center);
-    fireModel.Draw(skeletalAnimShader);
-
-    // Cross flames X axis
-    {
-      glm::vec3 posX = firePosition + glm::vec3( 1.0f, 0.0f, 0.0f);
-      glm::vec3 negX = firePosition + glm::vec3(-1.0f, 0.0f, 0.0f);
-      // Verify if X axis flames are free
-      bool posXfree = map.getCell(map.toMapIndices(posX).row, map.toMapIndices(posX).col) == 6;
-      bool negXfree = map.getCell(map.toMapIndices(negX).row, map.toMapIndices(negX).col) == 6;
-
-      if (posXfree) {
-        model = glm::mat4(1.0f);
-        model = glm::translate(model, firePosition + glm::vec3(0.5f, 0.0f, 0.0f));
-        model = glm::scale(model, glm::vec3(0.04f * 3.0f, 0.04f, 0.04f));
-        skeletalAnimShader.setMat4("model", model);
-        skeletalAnimShader.setVec3("fireCenter", center);
-        fireModel.Draw(skeletalAnimShader);
+      if (currentTime >= bomb.getFireExpiration()) {
+        bomb.putOutFire(grid_position, map);
+        continue;
       }
-      if (negXfree) {
-        model = glm::mat4(1.0f);
-        model = glm::translate(model, firePosition + glm::vec3(-0.5f, 0.0f, 0.0f));
-        model = glm::scale(model, glm::vec3(0.04f * 3.0f, 0.04f, 0.04f));
-        skeletalAnimShader.setMat4("model", model);
-        skeletalAnimShader.setVec3("fireCenter", center);
-        fireModel.Draw(skeletalAnimShader);
+
+      skeletalAnimShader.use();
+      std::vector<glm::mat4> transforms = fireAnimator.GetFinalBoneMatrices();
+      for (size_t i = 0; i < transforms.size(); ++i) {
+        skeletalAnimShader.setMat4("finalBonesMatrices[" + std::to_string(i) + "]", transforms[i]);
       }
+
+      glm::vec3 center = firePosition + glm::vec3(0.0f, 0.45f, 0.0f);
+      skeletalAnimShader.setInt("isFireModel", 1);
+
+      glm::mat4 model(1.0f);
+      model = glm::translate(model, firePosition);
+      model = glm::scale(model, glm::vec3(0.04f, 0.04f, 0.04f));
+      skeletalAnimShader.setMat4("model", model);
+      skeletalAnimShader.setVec3("fireCenter", center);
+      fireModel.Draw(skeletalAnimShader);
+
+      // Cross flames X and Z axis
+      int blastRadius = bomb.getBlastRadius();
+
+      for (int dir = -1; dir <= 1; dir += 2) {
+        // X axis
+        for (int step = 1; step <= blastRadius; step++) {
+          glm::vec3 pos = firePosition + glm::vec3(dir * step, 0.0f, 0.0f);
+          if (map.getCell(map.toMapIndices(pos).row, map.toMapIndices(pos).col) == 6) {
+            model = glm::mat4(1.0f);
+            model = glm::translate(model, firePosition + glm::vec3(dir * step * 0.5f, 0.0f, 0.0f));
+            model = glm::scale(model, glm::vec3(0.04f * 3.0f * step, 0.04f, 0.04f));
+            skeletalAnimShader.setMat4("model", model);
+            skeletalAnimShader.setVec3("fireCenter", center);
+            fireModel.Draw(skeletalAnimShader);
+          } else {
+            break;
+          }
+        }
+        // Z axis
+        for (int step = 1; step <= blastRadius; step++) {
+          glm::vec3 pos = firePosition + glm::vec3(0.0f, 0.0f, dir * step);
+          if (map.getCell(map.toMapIndices(pos).row, map.toMapIndices(pos).col) == 6) {
+            model = glm::mat4(1.0f);
+            model = glm::translate(model, firePosition + glm::vec3(0.0f, 0.0f, dir * step * 0.5f));
+            model = glm::scale(model, glm::vec3(0.04f, 0.04f, 0.04f * 3.0f * step));
+            skeletalAnimShader.setMat4("model", model);
+            skeletalAnimShader.setVec3("fireCenter", center);
+            fireModel.Draw(skeletalAnimShader);
+          } else {
+            break;
+          }
+        }
+      }
+
+      skeletalAnimShader.setInt("isFireModel", 0);
     }
-
-    // Cross flames Z axis
-    {
-      glm::vec3 posZ = firePosition + glm::vec3(0.0f, 0.0f,  1.0f);
-      glm::vec3 negZ = firePosition + glm::vec3(0.0f, 0.0f, -1.0f);
-      // Verify if Z axis flames are free
-      bool posZfree = map.getCell(map.toMapIndices(posZ).row, map.toMapIndices(posZ).col) == 6;
-      bool negZfree = map.getCell(map.toMapIndices(negZ).row, map.toMapIndices(negZ).col) == 6;
-
-      if (posZfree) {
-        model = glm::mat4(1.0f);
-        model = glm::translate(model, firePosition + glm::vec3(0.0f, 0.0f, 0.5f));
-        model = glm::scale(model, glm::vec3(0.04f, 0.04f, 0.04f * 3.0f));
-        skeletalAnimShader.setMat4("model", model);
-        skeletalAnimShader.setVec3("fireCenter", center);
-        fireModel.Draw(skeletalAnimShader);
-      }
-      if (negZfree) {
-        model = glm::mat4(1.0f);
-        model = glm::translate(model, firePosition + glm::vec3(0.0f, 0.0f, -0.5f));
-        model = glm::scale(model, glm::vec3(0.04f, 0.04f, 0.04f * 3.0f));
-        skeletalAnimShader.setMat4("model", model);
-        skeletalAnimShader.setVec3("fireCenter", center);
-        fireModel.Draw(skeletalAnimShader);
-      }
-    }
-
-    skeletalAnimShader.setInt("isFireModel", 0);
   }
 }
 
 void Drawer::DrawDoor(const Map& map, Model& doorBaseModel, Model& doorModel, Animator& animator, bool locked) {
-  skeletalAnimShader.use();
-  skeletalAnimShader.setFloat("shininess", 96.0f); // holographic energy surface
-
-  auto transforms = animator.GetFinalBoneMatrices();
-  for (size_t i = 0; i < transforms.size(); ++i) {
-    skeletalAnimShader.setMat4("finalBonesMatrices[" + std::to_string(i) + "]", transforms[i]);
-  }
-
   MapIndices door_index = map.getDoorPosition();
 
   float xPos = door_index.col - (HALF_COLS - 1);
@@ -259,7 +278,24 @@ void Drawer::DrawDoor(const Map& map, Model& doorBaseModel, Model& doorModel, An
 
   glm::vec3 doorWorldPos(xPos, -2.5f, zPos);
 
+  // Draw door base
+  modelLoadingShader.use();
   glm::mat4 model(1.0f);
+  model = glm::translate(model, doorWorldPos + glm::vec3(0.0f, 2.0f, 0.0f)); // Adjust the y pos to the floor
+  model = glm::scale(model, glm::vec3(0.01f, 0.01f, 0.01f));
+  modelLoadingShader.setMat4("model", model);
+  doorBaseModel.Draw(modelLoadingShader);
+
+  // Draw door base
+  skeletalAnimShader.use();
+  skeletalAnimShader.setFloat("shininess", 96.0f); // holographic energy surface
+
+  std::vector<glm::mat4> transforms = animator.GetFinalBoneMatrices();
+  for (size_t i = 0; i < transforms.size(); ++i) {
+    skeletalAnimShader.setMat4("finalBonesMatrices[" + std::to_string(i) + "]", transforms[i]);
+  }
+
+  model = glm::mat4(1.0f);
   model = glm::translate(model, doorWorldPos);
   model = glm::scale(model, glm::vec3(0.01f, 0.01f, 0.01f));
   skeletalAnimShader.setMat4("model", model);
@@ -278,19 +314,12 @@ void Drawer::DrawDoor(const Map& map, Model& doorBaseModel, Model& doorModel, An
   // Restore state
   glDepthMask(GL_TRUE);
   glDisable(GL_BLEND);
-
-  modelLoadingShader.use();
-  model = glm::mat4(1.0f);
-  model = glm::translate(model, doorWorldPos + glm::vec3(0.0f, 2.0f, 0.0f)); // Adjust the y pos to the floor
-  model = glm::scale(model, glm::vec3(0.01f, 0.01f, 0.01f));
-  modelLoadingShader.setMat4("model", model);
-  doorBaseModel.Draw(modelLoadingShader);
 }
 
 void Drawer::DrawRobot(Player& bomberman, Model& robot, Animator& animator, bool isFirstPerson) {
   skeletalAnimShader.use();
 
-  auto transforms = animator.GetFinalBoneMatrices();
+  std::vector<glm::mat4> transforms = animator.GetFinalBoneMatrices();
   for (size_t i = 0; i < transforms.size(); ++i) {
     skeletalAnimShader.setMat4("finalBonesMatrices[" + std::to_string(i) + "]", transforms[i]);
   }
@@ -310,7 +339,7 @@ void Drawer::DrawRobot(Player& bomberman, Model& robot, Animator& animator, bool
 void Drawer::DrawEnemies(const std::vector<Enemy>& enemies, GLfloat currentFrame, Model& ballomModel, Model& onilBodyModel, Model& onilLeftFtModel, Model& onilRightFtModel) {
   modelLoadingShader.use();
 
-  for (const auto &enemy : enemies) {
+  for (const Enemy& enemy : enemies) {
     glm::mat4 model(1.0f);
 
     float finalScale = 0.4f;

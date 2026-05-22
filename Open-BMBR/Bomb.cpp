@@ -14,9 +14,10 @@ void Bomb::setBombPosition(glm::vec3 position) {
   bomb_position.z = (int)std::round(position.z);
 }
 
-void Bomb::activateBomb(glm::vec3 position, GLfloat time, Map& map) {
+void Bomb::activateBomb(glm::vec3 position, GLfloat time, Map& map, int radius) {
     bomb_state = true;
     bomb_time = time;
+    blastRadius = radius;
     setBombPosition(position);
     MapIndices indices = map.toMapIndices(position);
     map.setBomb(indices);
@@ -25,12 +26,11 @@ void Bomb::activateBomb(glm::vec3 position, GLfloat time, Map& map) {
 void Bomb::expireBomb(glm::vec3 position, Map& map, GLfloat currentTime) {
   bomb_state = false; 
   MapIndices indices = map.toMapIndices(position);
-  map.detonateBomb(indices);
+  map.detonateBomb(indices, blastRadius);
 
   // Set variables to draw fire
   fire_active = true;
   fire_time = currentTime;
-  map.setFire(indices);
 }
 
 bool Bomb::isFireActive() {
@@ -40,7 +40,7 @@ bool Bomb::isFireActive() {
 void Bomb::putOutFire(MapIndices indices, Map& map) {
   fire_active = false;
 
-  map.extinguishFire(indices);
+  map.extinguishFire(indices, blastRadius);
 }
 
 glm::vec3 Bomb::getBombPosition() {
@@ -70,4 +70,8 @@ bool Bomb::checkCollision(glm::vec3 player_position, const Map& map) {
   }
 
   return false;
+}
+
+int Bomb::getBlastRadius() {
+  return blastRadius;
 }

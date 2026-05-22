@@ -30,9 +30,9 @@ public:
     int getTotalRows() const;
     int getTotalCols() const;
     void setBomb(MapIndices indices);
-    void setFire(MapIndices indices);
-    void detonateBomb(MapIndices indices);
-    void extinguishFire(MapIndices indices);
+    void detonateBomb(MapIndices indices, int fireRadius);
+    void extinguishFire(MapIndices indices, int fireRadius);
+    int collectPowerup(MapIndices indices);
     MapIndices toMapIndices(glm::vec3 position) const;
     bool hasDoorRevealed() const;
     MapIndices getDoorPosition() const;

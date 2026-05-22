@@ -11,7 +11,7 @@ public:
   Bomb (GLfloat bomb_duration, GLfloat y_bomb_position);
 
   void setBombPosition(glm::vec3 position);
-  void activateBomb(glm::vec3 position, GLfloat time, Map& map);
+  void activateBomb(glm::vec3 position, GLfloat time, Map& map, int radius);
   void expireBomb(glm::vec3 position, Map& map, GLfloat currentTime);
 
   bool isFireActive();
@@ -21,6 +21,7 @@ public:
   GLfloat getFireExpiration();
   bool getBombState();
   bool checkCollision(glm::vec3 player_position, const Map& map);
+  int getBlastRadius();
 
 private:
   // Bomb Atributes
@@ -30,6 +31,7 @@ private:
   bool bomb_state;
   bool fire_active;
   GLfloat fire_time;
+  int blastRadius = 1;
 };
 
 #endif

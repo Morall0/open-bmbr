@@ -24,6 +24,11 @@ public:
                           const Map &map);
   bool CheckCollision(glm::vec3 newPos, const Map &map);
   void resetTo(glm::vec3 pos, glm::vec3 dir);
+  void collectPowerups(Map& map);
+  void increaseSpeed();
+
+  int getMaxBombs() const;
+  int getFireRadius() const;
 
 private:
   // Player Attibutes
@@ -32,6 +37,8 @@ private:
   GLfloat speed;
   float halfHitbox = 0.3f;
   bool canPassBomb;
+  int maxBombs = 1;
+  int fireRadius = 1;
 };
 
 #endif
