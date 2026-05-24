@@ -66,6 +66,7 @@ void Drawer::InitUI() {
 
   // Load menu texture
   menuTexture = LoadTexture2D("images/Menu.png");
+  logoTexture = LoadTexture2D("images/logo.png");
 
   // Initial target for selection (Resume)
   currentSelectorY = 0.0f;
@@ -139,7 +140,7 @@ void Drawer::DrawPauseMenu(bool isPaused, int selection, float deltaTime, int sc
 
   glBindVertexArray(uiVAO);
 
-  // 1. Draw Dark Overlay Background
+  // Draw dark background overlay
   glm::mat4 model = glm::mat4(1.0f);
   model = glm::scale(model, glm::vec3((float)screenWidth, (float)screenHeight, 1.0f));
   uiShader.setMat4("model", model);
@@ -147,7 +148,7 @@ void Drawer::DrawPauseMenu(bool isPaused, int selection, float deltaTime, int sc
   uiShader.setVec4("color", glm::vec4(0.0f, 0.0f, 0.0f, 0.7f * menuScale));
   glDrawArrays(GL_TRIANGLES, 0, 6);
 
-  // Constants for menu
+  // Define menu dimensions
   float menuWidth = 400.0f;
   float menuHeight = 500.0f;
 
@@ -157,33 +158,54 @@ void Drawer::DrawPauseMenu(bool isPaused, int selection, float deltaTime, int sc
   menuModel = glm::scale(menuModel, glm::vec3(menuScale, menuScale, 1.0f));
   menuModel = glm::translate(menuModel, glm::vec3(-menuWidth / 2.0f, -menuHeight / 2.0f, 0.0f));
 
-  // 2. Draw Red Selector
-  // Target Y based on selection: 0 -> Resume, 1 -> New Game, 2 -> Exit
-  float optionHeights[] = {106.0f, 196.0f, 290.0f}; // Approximations, adjustable
+  // Render the selection indicator, calculate target vertical position based on current selection
+  float optionHeights[] = {106.0f, 196.0f, 290.0f};
   float targetY = optionHeights[selection];
   
-  // Smooth lerp
+  // Interpolate selector position smoothly
   currentSelectorY = currentSelectorY + (targetY - currentSelectorY) * (deltaTime * 15.0f);
 
   glm::mat4 selectorModel = menuModel;
-  selectorModel = glm::translate(selectorModel, glm::vec3(50.0f, currentSelectorY, 0.0f)); // Offset X a bit
+  selectorModel = glm::translate(selectorModel, glm::vec3(50.0f, currentSelectorY, 0.0f));
   selectorModel = glm::scale(selectorModel, glm::vec3(300.0f, 60.0f, 1.0f));
   
   uiShader.setMat4("model", selectorModel);
   uiShader.setBool("useTexture", false);
-  uiShader.setVec4("color", glm::vec4(2.0f, 0.41f, 0.1f, 0.9f)); // Red with slight transparency
+  uiShader.setVec4("color", glm::vec4(2.0f, 0.41f, 0.1f, 0.9f));
   glDrawArrays(GL_TRIANGLES, 0, 6);
 
-  // 3. Draw Menu Image
+  // Render the main menu texture
   glm::mat4 imgModel = menuModel;
   imgModel = glm::scale(imgModel, glm::vec3(menuWidth, menuHeight, 1.0f));
   
   uiShader.setMat4("model", imgModel);
   uiShader.setBool("useTexture", true);
-  uiShader.setVec4("color", glm::vec4(1.0f)); // White to keep original texture colors
+  uiShader.setVec4("color", glm::vec4(1.0f));
   
   glActiveTexture(GL_TEXTURE0);
   glBindTexture(GL_TEXTURE_2D, menuTexture);
+  uiShader.setInt("image", 0);
+  
+  glDrawArrays(GL_TRIANGLES, 0, 6);
+
+  // Render the logo on screen
+  float logoWidth = 320.0f;
+  float logoHeight = 180.0f;
+  float logoMargin = 20.0f;
+
+  glm::mat4 logoModel = glm::mat4(1.0f);
+  logoModel = glm::translate(logoModel, glm::vec3(logoMargin, logoMargin, 0.0f));
+  logoModel = glm::translate(logoModel, glm::vec3(logoWidth / 2.0f, logoHeight / 2.0f, 0.0f));
+  logoModel = glm::scale(logoModel, glm::vec3(menuScale, menuScale, 1.0f));
+  logoModel = glm::translate(logoModel, glm::vec3(-logoWidth / 2.0f, -logoHeight / 2.0f, 0.0f));
+  logoModel = glm::scale(logoModel, glm::vec3(logoWidth, logoHeight, 1.0f));
+
+  uiShader.setMat4("model", logoModel);
+  uiShader.setBool("useTexture", true);
+  uiShader.setVec4("color", glm::vec4(1.0f));
+  
+  glActiveTexture(GL_TEXTURE0);
+  glBindTexture(GL_TEXTURE_2D, logoTexture);
   uiShader.setInt("image", 0);
   
   glDrawArrays(GL_TRIANGLES, 0, 6);

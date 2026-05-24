@@ -79,6 +79,7 @@ class Drawer {
     // UI state
     GLuint uiVAO, uiVBO;
     GLuint menuTexture;
+    GLuint logoTexture;
     float currentSelectorY = 0.0f;
     float menuScale = 0.0f;
 
