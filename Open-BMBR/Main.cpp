@@ -90,6 +90,7 @@ bool playerWon = false;
 
 // UI State
 bool isGamePaused = false;
+GLfloat gameTime = 0.0f;
 int menuSelection = 0;
 bool shouldRestartGame = false;
 bool shouldExitGame = false;
@@ -320,6 +321,10 @@ int main() {
     // Check if any events have been activated (key pressed, mouse moved etc.)
     glfwPollEvents();
 
+    if (!isGamePaused) {
+      gameTime += deltaTime;
+    }
+
     if (shouldExitGame) {
       glfwSetWindowShouldClose(window, GL_TRUE);
     }
@@ -361,6 +366,20 @@ int main() {
       animator.UpdateAnimation(deltaTime);
       fire_animator.UpdateAnimation(deltaTime);
       door_animator.UpdateAnimation(deltaTime);
+
+      // Update bombs logic
+      for (auto& bomb : activeBombs) {
+        if (bomb.getBombState()) {
+          if (gameTime >= bomb.getBombExpiration()) {
+            bomb.expireBomb(bomb.getBombPosition(), map, gameTime);
+          }
+        } else if (bomb.isFireActive()) {
+          if (gameTime >= bomb.getFireExpiration()) {
+            glm::vec3 firePosition = bomb.getBombPosition() - glm::vec3(0.0f, 0.25f, 0.0f);
+            bomb.putOutFire(map.toMapIndices(firePosition), map);
+          }
+        }
+      }
     }
 
     // Clear the colorbuffer
@@ -372,7 +391,7 @@ int main() {
     // Detect camera mode transition
     if (currentCameraMode != prevCameraMode) {
       if (currentCameraMode == MODE_FREE) {
-        camera.setPosition(glm::vec3(0.0f, 11.0f, 7.8f)); // Starts in pseudo-isometric position
+        camera.UpdateSideScrollPosition(player_position); // Starts in pseudo-isometric position, centered on player
         camera.setYawPitch(-90.0f, -60.0f);
       } else if (currentCameraMode == MODE_FIRST_PERSON) {
         // Sync yaw to current player orientation
@@ -384,6 +403,7 @@ int main() {
       prevCameraMode = currentCameraMode;
     }
 
+    // Set the camera position depending the mode (free is in DoMovement)
     if (currentCameraMode == MODE_FIRST_PERSON) {
       camera.setPosition(player_position + glm::vec3(0.0f, 0.8f, 0.0f));
     } else if (currentCameraMode == MODE_SIDE_SCROLL) {
@@ -399,15 +419,11 @@ int main() {
 
     // UPDATE LIGHTS ------
     // Updates dynamic light positions and intensities for all shaders
-    renderer.SetupLights(activeBombs, currentFrame);
+    renderer.SetupLights(activeBombs, gameTime);
 
     // MAP ------
     // Draws the static map grid including floors, walls, and pillars
-    renderer.DrawMap(map, currentFrame);
-
-    // BOMBS ------
-    // Renders the bomb model with an accelerating blinking effect
-    renderer.DrawBomb(activeBombs, map, currentFrame, bombModel);
+    renderer.DrawMap(map, gameTime);
 
     // DOOR ------
     // Draws the exit hatch when it is revealed on the map
@@ -416,11 +432,12 @@ int main() {
       renderer.DrawDoor(map, doorBaseModel, doorModel, door_animator, locked);
     }
 
-    // Check if the player dies from fire
+    // Check if the player dies from fire of every bomb
     bool fireCollision = false;
     for (auto& bomb : activeBombs) {
       if (bomb.isFireActive() && bomb.checkCollision(player_position, map)) {
         fireCollision = true;
+        currentCameraMode = MODE_FREE;
         break;
       }
     }
@@ -454,6 +471,7 @@ int main() {
           if (dist < 0.65f) {
             playerIsAlive = false;
             animator.PlayAnimation(&animations.deadAnim, false);
+            currentCameraMode = MODE_FREE;
             break;
           }
         }
@@ -474,7 +492,11 @@ int main() {
 
     // FIRE ------
     // Renders the cross-shaped fire explosion particles
-    renderer.DrawFire(activeBombs, map, currentFrame, fire, fire_animator);
+    renderer.DrawFire(activeBombs, map, gameTime, fire, fire_animator);
+
+    // BOMBS ------
+    // Renders the bomb model with an accelerating blinking effect
+    renderer.DrawBomb(activeBombs, map, gameTime, bombModel);
 
     // ENEMIES ------
     // Draws all enemies with their respective movement and death animations
@@ -485,7 +507,7 @@ int main() {
     modelLoadingShader.setMat4("projection", projection);
     modelLoadingShader.setVec3("viewPos", camera.GetPosition());
 
-    renderer.DrawEnemies(enemies, currentFrame, ballomModel, onilCuerpoModel, onilPieIzqModel, onilPieDerModel);
+    renderer.DrawEnemies(enemies, gameTime, ballomModel, onilCuerpoModel, onilPieIzqModel, onilPieDerModel);
 
     // PAUSE MENU ------
     renderer.DrawPauseMenu(isGamePaused, menuSelection, deltaTime, SCREEN_WIDTH, SCREEN_HEIGHT);
@@ -504,17 +526,6 @@ int main() {
 
 // Moves/alters the camera positions based on user input
 void DoMovement(Player& bomberman, Map& map, std::vector<Enemy>& enemies, std::vector<Bomb>& bombs, Animator& animator, AnimationsSet& animations) {
-  if (!playerIsAlive || playerWon) { // Cant move if player dies or wins
-    // Restart when player dies or wins
-    if (keys[GLFW_KEY_R])
-    {
-      restart(bomberman, map, enemies);
-      map.printMap();
-    }
-    else // Movement not allowed
-      return;
-  }
-
   // Camera controls
   if (currentCameraMode == MODE_FREE) {
     if (keys[GLFW_KEY_UP]) {
@@ -532,6 +543,17 @@ void DoMovement(Player& bomberman, Map& map, std::vector<Enemy>& enemies, std::v
     if (keys[GLFW_KEY_RIGHT]) {
       camera.ProcessKeyboard(RIGHT, deltaTime, half_cols, half_rows);
     }
+  }
+
+  // Can only move in free mode if player dies or wins
+  if (!playerIsAlive || playerWon) {
+    if (keys[GLFW_KEY_R]) { // Restart when player dies or wins
+      restart(bomberman, map, enemies);
+      map.printMap();
+      currentCameraMode = MODE_SIDE_SCROLL; // Restart the camera mode
+    }
+    else // Movement not allowed
+      return;
   }
 
   // Player controls
@@ -594,7 +616,7 @@ void DoMovement(Player& bomberman, Map& map, std::vector<Enemy>& enemies, std::v
     int cell = map.getCell(p_idx.row, p_idx.col);
     if (cell != 7 && cell != 8 && cell != 11 && cell != 12 && cell != 5) { // Do not overwrite door, powerups, or other bombs
       Bomb newBomb(2.5f, -0.2f);
-      newBomb.activateBomb(bomberman.getPosition(), glfwGetTime(), map, bomberman.getFireRadius());
+      newBomb.activateBomb(bomberman.getPosition(), gameTime, map, bomberman.getFireRadius());
       bombs.push_back(newBomb);
       bomberman.setCanPassBomb(true);
       animator.PlayAnimation(&animations.punchAnim, false);
@@ -669,7 +691,7 @@ void KeyCallback(GLFWwindow *window, int key, int scancode, int action,
     }
   }
 
-  if (key == GLFW_KEY_C && action == GLFW_PRESS) {
+  if (key == GLFW_KEY_C && action == GLFW_PRESS && !isGamePaused) {
     if (currentCameraMode == MODE_SIDE_SCROLL) currentCameraMode = MODE_FIRST_PERSON;
     else if (currentCameraMode == MODE_FIRST_PERSON) currentCameraMode = MODE_FREE;
     else currentCameraMode = MODE_SIDE_SCROLL;
@@ -697,5 +719,7 @@ void MouseCallback(GLFWwindow *window, double xPos, double yPos) {
   lastX = xPos;
   lastY = yPos;
 
-  camera.ProcessMouseMovement(xOffset, yOffset);
+  // Allow camera movement only when the game is not paused
+  if (!isGamePaused)
+    camera.ProcessMouseMovement(xOffset, yOffset);
 }

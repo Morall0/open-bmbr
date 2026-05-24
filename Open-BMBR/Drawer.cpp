@@ -297,9 +297,6 @@ void Drawer::DrawBomb(std::vector<Bomb>& bombs, Map& map, GLfloat currentTime, M
       float finalBlinkScale = 0.15f + (blinkScale * 0.5f);
 
       glm::vec3 bomb_position = bomb.getBombPosition();
-      if (currentTime >= bomb.getBombExpiration()) {
-        bomb.expireBomb(bomb_position, map, currentTime);
-      }
 
       modelLoadingShader.use();
       glm::mat4 model(1.0f);
@@ -316,12 +313,6 @@ void Drawer::DrawFire(std::vector<Bomb>& bombs, Map& map, GLfloat currentTime, M
   for (Bomb& bomb : bombs) {
     if (bomb.isFireActive()) {
       glm::vec3 firePosition = bomb.getBombPosition() - glm::vec3(0.0f, 0.25f, 0.0f);
-      MapIndices grid_position = map.toMapIndices(firePosition);
-
-      if (currentTime >= bomb.getFireExpiration()) {
-        bomb.putOutFire(grid_position, map);
-        continue;
-      }
 
       skeletalAnimShader.use();
       std::vector<glm::mat4> transforms = fireAnimator.GetFinalBoneMatrices();

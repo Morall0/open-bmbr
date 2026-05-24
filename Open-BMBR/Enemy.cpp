@@ -121,7 +121,7 @@ std::vector<Enemy> Enemy::SpawnEnemies(const Map& map, int minEnemies, int maxEn
 void Enemy::Update(float deltaTime, const Map& map, glm::vec3 playerPos) {
     // If is death, animate shrink 
     if (isDead) {
-        const float deathDuration = 1.0f; // Segundos que dura la animacion de muerte
+        const float deathDuration = 1.0f; // Death animation duration in seconds
         deathTimer += deltaTime;
         deathScale = 1.0f - (deathTimer / deathDuration);
         if (deathScale < 0.0f) deathScale = 0.0f;
