@@ -509,7 +509,7 @@ int main() {
 
     renderer.DrawEnemies(enemies, gameTime, ballomModel, onilCuerpoModel, onilPieIzqModel, onilPieDerModel);
 
-    // PAUSE MENU ------
+    // Renders the interactive 2D pause menu overlay and handles its animations
     renderer.DrawPauseMenu(isGamePaused, menuSelection, deltaTime, SCREEN_WIDTH, SCREEN_HEIGHT);
 
     glBindVertexArray(0);
