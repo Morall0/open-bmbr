@@ -198,6 +198,7 @@ int main() {
   Shader skeletalAnimShader("Shader/skeletal.vs", "Shader/skeletal.frag");
   Shader modelLoadingShader("Shader/modelLoading.vs", "Shader/modelLoading.frag");
   Shader uiShader("Shader/ui.vs", "Shader/ui.frag");
+  Shader skyboxShader("Shader/skybox.vs", "Shader/skybox.frag");
 
   stbi_set_flip_vertically_on_load(true);
 
@@ -229,6 +230,8 @@ int main() {
   Animator door_animator(&door_anim, true);
 
   Model doorBaseModel("Models/exit_base.fbx");
+
+  Model skyboxModel("Models/Inside galaxy HDRI.glb");
 
   // First, set the container's VAO (and VBO)
   GLuint VBO, VAO;
@@ -508,6 +511,9 @@ int main() {
     modelLoadingShader.setVec3("viewPos", camera.GetPosition());
 
     renderer.DrawEnemies(enemies, gameTime, ballomModel, onilCuerpoModel, onilPieIzqModel, onilPieDerModel);
+
+    // Renders the background space environment
+    renderer.DrawSkybox(skyboxModel, skyboxShader, view, projection);
 
     // Renders the interactive 2D pause menu overlay and handles its animations
     renderer.DrawPauseMenu(isGamePaused, menuSelection, deltaTime, SCREEN_WIDTH, SCREEN_HEIGHT);

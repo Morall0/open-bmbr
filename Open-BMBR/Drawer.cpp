@@ -20,6 +20,9 @@ void Drawer::InitMapMaterials() {
   // Alternative door texture
   doorAlternativeTex = LoadTexture2D("images/open_portal_shield.png");
 
+  // Skybox texture
+  galaxyTexture = LoadTexture2D("Models/textures/Inside Galaxy 4k HDRI_0.png");
+
   //                              diffuse        Ka     Ks    shininess  uvX    uvY
   map_materials.ground_mat    = {ground_diff,    0.7f,  0.10f, 16.0f,  14.5f, 5.5f};
   map_materials.wall_mat      = {wall_diff,      0.6f,  0.20f, 32.0f,   1.0f, 1.0f};
@@ -389,6 +392,30 @@ void Drawer::DrawFire(std::vector<Bomb>& bombs, Map& map, GLfloat currentTime, M
       skeletalAnimShader.setInt("isFireModel", 0);
     }
   }
+}
+
+void Drawer::DrawSkybox(Model& skyboxModel, Shader& skyboxShader, glm::mat4 view, glm::mat4 projection) {
+  // Modify depth function to render at maximum depth
+  glDepthFunc(GL_LEQUAL);
+  
+  skyboxShader.use();
+  skyboxShader.setMat4("view", view);
+  skyboxShader.setMat4("projection", projection);
+  
+  // Scale skybox model to encompass the scene
+  glm::mat4 model = glm::mat4(1.0f);
+  model = glm::scale(model, glm::vec3(50.0f, 50.0f, 50.0f));
+  skyboxShader.setMat4("model", model);
+  
+  // Bind skybox texture manually
+  glActiveTexture(GL_TEXTURE0);
+  glBindTexture(GL_TEXTURE_2D, galaxyTexture);
+  skyboxShader.setInt("texture_diffuse1", 0);
+
+  skyboxModel.Draw(skyboxShader);
+  
+  // Restore default depth function
+  glDepthFunc(GL_LESS);
 }
 
 void Drawer::DrawDoor(const Map& map, Model& doorBaseModel, Model& doorModel, Animator& animator, bool locked) {

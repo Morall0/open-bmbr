@@ -50,6 +50,7 @@ class Drawer {
 
     // Static objects drawing
     void DrawMap(const Map& map, GLfloat currentFrame);
+    void DrawSkybox(Model& skyboxModel, Shader& skyboxShader, glm::mat4 view, glm::mat4 projection);
     void DrawDoor(const Map& map, Model& doorBaseModel, Model& doorModel, Animator& animator, bool locked);
 
     // Dynamic objects drawing
@@ -75,6 +76,7 @@ class Drawer {
     MapMaterials map_materials;
 
     GLuint doorAlternativeTex;
+    GLuint galaxyTexture;
 
     // UI state
     GLuint uiVAO, uiVBO;
